@@ -10,7 +10,7 @@
    ========================================================================== */
 (function () {
   'use strict';
-  const { C, util: U, draw: D } = Arcade;
+  const { util: U, draw: D } = Arcade;
 
   const W = 800, H = 600;
   const WAVES = 5, WAVE_TIME = 20;
@@ -30,22 +30,28 @@
   const offX = (x, r) => (r.fresh > 0 ? r.x - x : wrapD(x, r.x, W));
   const offY = (y, r) => (r.fresh > 0 ? r.y - y : wrapD(y, r.y, H));
 
+  const VEC = '#e6efff', GLOW = '#8fb8ff';     // vector-monitor white with a blue phosphor glow
+
   Arcade.register({
     id: 'asteroids',
     title: 'Asteroids',
+    year: '1979 · Atari',
+    history: 'Lyle Rains and Ed Logg\'s vector game: white lines on a black screen, a ship with inertia, rocks that split into smaller, faster pieces (20/50/100 points), a risky hyperspace button, and a two-note "heartbeat" that speeds up as a wave goes on.',
     tagline: 'A pilot trying to survive against the player hurling the rocks.',
-    flip: 'the computer flies the ship, you send the asteroids.',
-    blurb: 'The pilot has 4 lives and has to survive 5 waves of 20 seconds each. The thrower spends energy to launch asteroids from the edge of the screen. Energy recharges faster every wave, and big rocks split into smaller, faster ones when shot.',
-    menuText: 'The pilot wins by surviving <b>5 waves</b>. The thrower wins by taking all <b>4 lives</b>. The thrower gets more energy every wave.',
+    flip: 'the computer flies the ship, you throw the asteroids.',
+    blurb: 'The pilot has 4 ships and must survive 5 waves of 20 seconds. The thrower spends energy to hurl rocks in from the edges.',
+    menuText: 'The pilot wins by surviving <b>5 waves</b>. The thrower wins by taking all <b>4 ships</b>. Big rocks split into faster small ones: 20, 50 and 100 points.',
+    scoreSide: 'pilot', scoreName: 'points',
     sides: [
-      { key: 'pilot', label: 'Pilot', human: '← → to turn, ↑ to thrust, Space to fire.', cpu: 'Works out when each rock will pass closest, dodges the urgent ones, and leads its shots on the rest. It has to rotate to aim like you do, and its aim and reactions sharpen each wave.' },
-      { key: 'thrower', label: 'Thrower', human: 'Click anywhere to throw an asteroid from the nearest edge toward that point. 1 / 2 / 3 or the mouse wheel picks the size (small, medium, big).', cpu: 'Starts by throwing random rocks. Later it leads the ship, fires from behind it, and sends crossfire from both sides.' }
+      { key: 'pilot', label: 'Pilot', human: '← → turn, ↑ thrust, Space fire, Shift hyperspace (it can blow you up). Stay near the middle: rocks wrap around the edges.', cpu: 'Notices new rocks a moment late, turns and fires in bursts, only half-leads its shots, panic-escapes when a rock gets close, and is bad at braking. Hyperspace is a last resort.' },
+      { key: 'thrower', label: 'Thrower', human: 'Click to hurl a rock from the nearest edge toward that point. 1 / 2 / 3 or the wheel picks small / medium / big. Energy recharges faster each wave.', cpu: 'Saves up and throws bursts at where the ship is, big rocks first; later leads the ship and comes at it from behind.' }
     ],
     defaults: { pilot: 'cpu', thrower: 'human' },
 
     thumb(ctx, w) {
       const s = w / W;
-      ctx.strokeStyle = C.muted; ctx.lineWidth = 2;
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, w * 0.75);
+      ctx.strokeStyle = VEC; ctx.lineWidth = 2; ctx.shadowColor = GLOW; ctx.shadowBlur = 6;
       [[160, 120, 44], [620, 420, 38], [560, 150, 22], [250, 460, 16]].forEach(([x, y, r], k) => {
         ctx.beginPath();
         for (let i = 0; i < 10; i++) {
@@ -54,12 +60,9 @@
         }
         ctx.closePath(); ctx.stroke();
       });
-      ctx.save(); ctx.translate(400 * s, 300 * s); ctx.rotate(-0.6);
-      ctx.strokeStyle = C.cyan; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.moveTo(18, 0); ctx.lineTo(-12, -11); ctx.lineTo(-7, 0); ctx.lineTo(-12, 11); ctx.closePath(); ctx.stroke();
-      ctx.restore();
-      ctx.fillStyle = '#fff';
-      [[460, 250], [500, 220]].forEach(([x, y]) => ctx.fillRect(x * s, y * s, 3, 3));
+      ctx.save(); ctx.translate(400 * s, 300 * s); ctx.rotate(-Math.PI / 2);
+      ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-11, -9); ctx.lineTo(-6, -6); ctx.lineTo(-6, 6); ctx.lineTo(-11, 9); ctx.closePath(); ctx.stroke();
+      ctx.restore(); ctx.shadowBlur = 0;
     },
 
     create(api) {
@@ -67,7 +70,9 @@
       let lives = 4, score = 0;
       let energy = 5, size = 3;
       const ship = { x: W / 2, y: H / 2, vx: 0, vy: 0, a: -Math.PI / 2, alive: true, inv: 2, respawn: 0, thrusting: false };
-      let bullets = [], rocks = [], sparks = [];
+      let bullets = [], rocks = [], sparks = [], debris = [];
+      let beatT = 0.5, beatHigh = false, hyper = 0, thrustSfx = 0;
+      let phosphor = null;           // offscreen layer that keeps the vector afterglow
       let cool = 0;
       let gameDone = false;
       const stars = Array.from({ length: 70 }, () => ({ x: Math.random() * W, y: Math.random() * H, b: Math.random() }));
@@ -86,8 +91,8 @@
       // Launch from the screen edge nearest the aim point, heading at the aim point.
       function launch(tx, ty, sz) {
         const cost = SIZES[sz].cost;
-        if (energy < cost) { if (api.isHuman('thrower')) api.toast('Not enough energy', C.muted); return false; }
-        if (rocks.length >= maxRocks()) { if (api.isHuman('thrower')) api.toast('Too many rocks on screen', C.muted); return false; }
+        if (energy < cost) { if (api.isHuman('thrower')) api.toast('Not enough energy'); return false; }
+        if (rocks.length >= maxRocks()) { if (api.isHuman('thrower')) api.toast('Too many rocks on screen'); return false; }
         const r = SIZES[sz].r;
         const dl = tx, dr = W - tx, dt = ty, db = H - ty;
         const m = Math.min(dl, dr, dt, db);
@@ -100,6 +105,7 @@
         const sp = U.rand(...SIZES[sz].speed) * speedMul();
         makeRock(sx, sy, Math.cos(ang) * sp, Math.sin(ang) * sp, sz);
         energy -= cost;
+        api.sfx('blip', { f: 180 + sz * 40 });
         return true;
       }
 
@@ -110,6 +116,7 @@
       // at it from behind.
       const tp = new Arcade.Human({ reaction: 0.3 });
       let throwThink = 1.5, burstLeft = 0;
+      const throwCursor = { x: W / 2, y: H / 2 };
       const throwerSkill = () => Math.min(0.6, 0.1 + (wave - 1) * 0.11 + waveT / 300);
       function cpuThrow(dt) {
         throwThink -= dt;
@@ -127,7 +134,9 @@
         if (U.chance(s * 0.4)) { tx -= Math.cos(ship.a) * 60; ty -= Math.sin(ship.a) * 60; }   // from behind
         launch(U.clamp(tx, 20, W - 20), U.clamp(ty, 20, H - 20), sz);
         burstLeft--;
-        throwThink = burstLeft > 0 ? U.rand(0.22, 0.45) : tp.react(true) + U.rand(0.6, 1.8);
+        const travel = tp.point(Math.hypot(tx - throwCursor.x, ty - throwCursor.y), 50);
+        throwCursor.x = tx; throwCursor.y = ty;
+        throwThink = (burstLeft > 0 ? U.rand(0.05, 0.15) : tp.react(true) + U.rand(0.5, 1.5)) + travel;
       }
 
       /* ---------- computer pilot (plays like a person) ---------- */
@@ -175,6 +184,8 @@
           }
           if (danger && !pp.lapsed(0.25)) {
             const { r, ap } = danger;
+            // no time left to fly out of it: beginners hit hyperspace
+            if (ap.t < 0.22 && U.chance(0.35 * (1 - s))) { out.hyper = true; return out; }
             const toRock = Math.atan2(ap.py, ap.px);
             // small rock dead ahead? shoot it instead of running
             if (r.sz === 1 && Math.abs(U.angleDiff(ship.a, toRock)) < 0.3 && U.chance(0.6)) { out.wantAngle = toRock; out.fire = true; return out; }
@@ -226,6 +237,7 @@
       function fire() {
         if (cool > 0 || !ship.alive || bullets.length >= MAX_BULLETS) return;
         cool = FIRE_COOLDOWN;
+        api.sfx('fire');
         bullets.push({
           x: ship.x + Math.cos(ship.a) * SHIP_R, y: ship.y + Math.sin(ship.a) * SHIP_R,
           vx: Math.cos(ship.a) * BULLET_V, vy: Math.sin(ship.a) * BULLET_V, t: BULLET_LIFE
@@ -243,7 +255,8 @@
         const r = rocks[i];
         rocks.splice(i, 1);
         score += SIZES[r.sz].pts;
-        explode(r.x, r.y, 6 + r.sz * 4, C.muted);
+        explode(r.x, r.y, 6 + r.sz * 4, VEC);
+        api.sfx(r.sz === 3 ? 'boomBig' : r.sz === 2 ? 'boomMid' : 'boomSmall');
         if (r.sz > 1) {
           for (const k of [-1, 1]) {
             const ang = Math.atan2(r.vy, r.vx) + k * U.rand(0.35, 0.8);
@@ -255,12 +268,25 @@
       }
 
       function shipHit() {
-        explode(ship.x, ship.y, 30, C.cyan);
+        explode(ship.x, ship.y, 12, VEC);
+        // the classic: the ship's lines fly apart
+        for (let i = 0; i < 5; i++) {
+          const a = U.rand(0, Math.PI * 2), sp = U.rand(30, 110);
+          debris.push({ x: ship.x, y: ship.y, vx: Math.cos(a) * sp + ship.vx * 0.3, vy: Math.sin(a) * sp + ship.vy * 0.3, a: U.rand(0, 6), va: U.rand(-4, 4), len: U.rand(8, 16), t: U.rand(1, 1.8) });
+        }
+        api.sfx('boomBig');
         lives--;
         ship.alive = false;
         ship.respawn = 1.6;
         if (lives <= 0) { gameDone = true; api.end('thrower', `The ship went down in wave ${wave}.`); }
-        else api.toast(`Ship lost — ${lives} left`, C.bad);
+        else api.toast(`Ship lost — ${lives} left`);
+      }
+
+      function hyperspace() {
+        if (!ship.alive || hyper > 0) return;
+        ship.alive = false;
+        hyper = 0.6;
+        api.sfx('blip', { f: 1500 });
       }
 
       function tryRespawn() {
@@ -274,14 +300,32 @@
         update(dt) {
           for (const p of sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.t -= dt; }
           sparks = sparks.filter(p => p.t > 0);
+          for (const d of debris) { d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.va * dt; d.t -= dt; }
+          debris = debris.filter(d => d.t > 0);
           if (gameDone) return;
+          // the heartbeat: two alternating thumps that quicken as the game goes on
+          beatT -= dt;
+          if (beatT <= 0) {
+            const progress = ((wave - 1) + waveT / WAVE_TIME) / WAVES;
+            beatT = U.lerp(1.0, 0.28, progress);
+            beatHigh = !beatHigh;
+            api.sfx('thump', { high: beatHigh });
+          }
+          // hyperspace in progress: vanish, then reappear somewhere random (1 in 5 blows up)
+          if (hyper > 0) {
+            hyper -= dt;
+            if (hyper <= 0) {
+              Object.assign(ship, { x: U.rand(60, W - 60), y: U.rand(60, H - 60), vx: 0, vy: 0, alive: true, inv: 0 });
+              if (U.chance(0.2)) shipHit();
+            }
+          }
 
           // waves
           waveT += dt;
           if (waveT >= WAVE_TIME) {
             if (wave >= WAVES) { gameDone = true; return api.end('pilot', `Survived all ${WAVES} waves with ${lives} ${lives === 1 ? 'life' : 'lives'} left. Score ${score}.`); }
             wave++; waveT = 0;
-            api.toast(`Wave ${wave} — more energy for the thrower`, C.warn);
+            api.toast(`Wave ${wave}`);
           }
           energy = Math.min(ENERGY_MAX, energy + regen() * dt);
 
@@ -303,13 +347,17 @@
             }
             thrust = a.thrust;
             shoot = a.fire;
+            if (a.hyper) hyperspace();
           }
 
           cool -= dt;
           if (ship.alive) {
             ship.a += turn * TURN * dt;
             ship.thrusting = thrust;
-            if (thrust) { ship.vx += Math.cos(ship.a) * THRUST * dt; ship.vy += Math.sin(ship.a) * THRUST * dt; }
+            if (thrust) {
+              ship.vx += Math.cos(ship.a) * THRUST * dt; ship.vy += Math.sin(ship.a) * THRUST * dt;
+              thrustSfx -= dt; if (thrustSfx <= 0) { thrustSfx = 0.09; api.sfx('thrust'); }
+            }
             const drag = Math.exp(-DRAG * dt);
             ship.vx *= drag; ship.vy *= drag;
             const sp = Math.hypot(ship.vx, ship.vy);
@@ -318,7 +366,7 @@
             ship.y = (ship.y + ship.vy * dt + H) % H;
             ship.inv -= dt;
             if (shoot) fire();
-          } else {
+          } else if (hyper <= 0) {
             ship.respawn -= dt;
             if (ship.respawn <= 0) tryRespawn();
           }
@@ -353,6 +401,7 @@
         },
 
         onKey(code) {
+          if (api.isHuman('pilot') && (code === 'ShiftLeft' || code === 'ShiftRight' || code === 'KeyH')) hyperspace();
           if (!api.isHuman('thrower')) return;
           if (code === 'Digit1') size = 1;
           if (code === 'Digit2') size = 2;
@@ -363,78 +412,73 @@
           if (type === 'down' && api.isHuman('thrower')) launch(x, y, size);
         },
 
+        // Vector monitor: bright lines on black with a blue phosphor glow. Lines
+        // are drawn onto a layer that fades instead of clearing, which gives the
+        // afterglow trails a real vector screen had.
         draw(ctx) {
-          ctx.fillStyle = C.bg;
-          ctx.fillRect(0, 0, W, H);
-          for (const s of stars) { ctx.fillStyle = `rgba(200,210,255,${0.15 + s.b * 0.4})`; ctx.fillRect(s.x, s.y, 1.5, 1.5); }
-
-          // rocks
-          ctx.lineWidth = 2;
+          if (!phosphor) { phosphor = document.createElement('canvas'); phosphor.width = W; phosphor.height = H; }
+          const g = phosphor.getContext('2d');
+          g.fillStyle = 'rgba(0,0,0,0.45)';
+          g.fillRect(0, 0, W, H);
+          g.save();
+          g.strokeStyle = VEC; g.fillStyle = VEC; g.lineWidth = 1.8; g.lineJoin = 'round';
+          g.shadowColor = GLOW; g.shadowBlur = 8;
           for (const r of rocks) {
-            ctx.save();
-            ctx.translate(r.x, r.y); ctx.rotate(r.rot);
-            ctx.strokeStyle = r.sz === 1 ? C.warn : r.sz === 2 ? '#c9d2ea' : C.muted;
-            ctx.fillStyle = 'rgba(152,164,192,.06)';
-            ctx.beginPath();
-            r.verts.forEach((v, i) => {
-              const a = (i / r.verts.length) * Math.PI * 2;
-              ctx.lineTo(Math.cos(a) * r.r * v, Math.sin(a) * r.r * v);
-            });
-            ctx.closePath(); ctx.fill(); ctx.stroke();
-            ctx.restore();
+            g.save(); g.translate(r.x, r.y); g.rotate(r.rot);
+            g.beginPath();
+            r.verts.forEach((v, i) => { const a = (i / r.verts.length) * Math.PI * 2; g.lineTo(Math.cos(a) * r.r * v, Math.sin(a) * r.r * v); });
+            g.closePath(); g.stroke(); g.restore();
           }
-
-          // bullets
-          ctx.fillStyle = '#fff';
-          for (const b of bullets) { ctx.beginPath(); ctx.arc(b.x, b.y, 2.4, 0, 7); ctx.fill(); }
-
-          // ship
+          for (const b of bullets) g.fillRect(b.x - 1.5, b.y - 1.5, 3, 3);
           if (ship.alive && !(ship.inv > 0 && Math.floor(api.time * 10) % 2)) {
-            ctx.save();
-            ctx.translate(ship.x, ship.y); ctx.rotate(ship.a);
-            ctx.strokeStyle = C.cyan; ctx.lineWidth = 2.5; ctx.shadowColor = C.cyan; ctx.shadowBlur = 10;
-            ctx.beginPath(); ctx.moveTo(18, 0); ctx.lineTo(-12, -11); ctx.lineTo(-7, 0); ctx.lineTo(-12, 11); ctx.closePath(); ctx.stroke();
-            if (ship.thrusting && Math.floor(api.time * 30) % 2) {
-              ctx.strokeStyle = C.warn;
-              ctx.beginPath(); ctx.moveTo(-9, -5); ctx.lineTo(-19, 0); ctx.lineTo(-9, 5); ctx.stroke();
-            }
-            ctx.restore();
+            g.save(); g.translate(ship.x, ship.y); g.rotate(ship.a);
+            g.beginPath(); g.moveTo(16, 0); g.lineTo(-11, -9); g.lineTo(-6, -6); g.lineTo(-6, 6); g.lineTo(-11, 9); g.closePath(); g.stroke();
+            if (ship.thrusting && Math.floor(api.time * 30) % 2) { g.beginPath(); g.moveTo(-6, -4); g.lineTo(-15, 0); g.lineTo(-6, 4); g.stroke(); }
+            g.restore();
           }
-          for (const p of sparks) {
-            ctx.globalAlpha = Math.min(1, p.t * 2);
-            ctx.fillStyle = p.col;
-            ctx.fillRect(p.x, p.y, 2.5, 2.5);
+          for (const d of debris) {
+            g.globalAlpha = Math.min(1, d.t);
+            g.beginPath(); g.moveTo(d.x - Math.cos(d.a) * d.len / 2, d.y - Math.sin(d.a) * d.len / 2); g.lineTo(d.x + Math.cos(d.a) * d.len / 2, d.y + Math.sin(d.a) * d.len / 2); g.stroke();
           }
-          ctx.globalAlpha = 1;
+          for (const p of sparks) { g.globalAlpha = Math.min(1, p.t * 2); g.fillRect(p.x - 1, p.y - 1, 2, 2); }
+          g.globalAlpha = 1;
+          g.restore();
 
-          // aiming hint for a human thrower
+          ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+          ctx.drawImage(phosphor, 0, 0);
+
+          // human thrower's aim: a dashed vector circle of the chosen rock size
           if (api.isHuman('thrower') && api.pointer.inside) {
             const p = api.pointer;
-            ctx.strokeStyle = energy >= SIZES[size].cost ? 'rgba(240,168,60,.7)' : 'rgba(242,92,105,.5)';
-            ctx.setLineDash([4, 5]);
+            ctx.strokeStyle = energy >= SIZES[size].cost ? VEC : '#ff6a5a';
+            ctx.globalAlpha = 0.7; ctx.setLineDash([4, 6]);
             ctx.beginPath(); ctx.arc(p.x, p.y, SIZES[size].r, 0, 7); ctx.stroke();
-            ctx.setLineDash([]);
+            ctx.setLineDash([]); ctx.globalAlpha = 1;
           }
 
-          const who = k => (api.isHuman(k) ? 'YOU' : 'CPU');
-          D.hud(ctx, [
-            { text: `PILOT · ${who('pilot')}  ${'▲'.repeat(Math.max(0, lives))}`, color: C.cyan, pixel: true },
-            { text: `WAVE ${wave}/${WAVES}  ${Math.ceil(WAVE_TIME - waveT)}s`, align: 'center', pixel: true },
-            { text: `${who('thrower')} · THROWER`, color: C.warn, align: 'right', pixel: true }
-          ]);
-          // energy + size selector
-          D.bar(ctx, 0, 40, W, 5, energy / ENERGY_MAX, C.warn, C.panel);
-          if (api.isHuman('thrower')) {
-            const names = { 1: 'SMALL 1.5', 2: 'MEDIUM 2.5', 3: 'BIG 4' };
-            [1, 2, 3].forEach((k, i) => {
-              D.text(ctx, `${k} ${names[k]}`, W - 330 + i * 110, H - 16, {
-                size: 12, color: k === size ? C.warn : C.dim
-              });
-            });
-            D.text(ctx, `energy ${energy.toFixed(1)}`, 16, H - 16, { size: 12, color: C.warn });
+          // HUD in the original's layout: score top-left, reserve ships under it
+          const who = k => (api.isHuman(k) ? '1UP' : 'CPU');
+          D.text(ctx, String(score).padStart(5, ' '), 24, 30, { size: 20, pixel: true, color: VEC });
+          D.text(ctx, `PILOT ${who('pilot')}`, 24, 56, { size: 8, pixel: true, color: VEC });
+          ctx.strokeStyle = VEC; ctx.lineWidth = 1.5;
+          for (let i = 0; i < Math.max(0, lives - (ship.alive ? 1 : 0)); i++) {
+            ctx.save(); ctx.translate(150 + i * 18, 30); ctx.rotate(-Math.PI / 2);
+            ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-6, -5); ctx.lineTo(-3, -3); ctx.lineTo(-3, 3); ctx.lineTo(-6, 5); ctx.closePath(); ctx.stroke();
+            ctx.restore();
           }
-          D.text(ctx, `score ${score}`, 16, 60, { size: 12, color: C.muted });
+          D.text(ctx, `WAVE ${wave}/${WAVES}`, W / 2, 26, { size: 12, pixel: true, color: VEC, align: 'center' });
+          D.text(ctx, `${Math.ceil(WAVE_TIME - waveT)}`, W / 2, 48, { size: 12, pixel: true, color: VEC, align: 'center' });
+          // thrower's energy: an outlined vector bar
+          D.text(ctx, `THROWER ${who('thrower')}`, W - 24, 26, { size: 8, pixel: true, color: VEC, align: 'right' });
+          ctx.strokeRect(W - 184, 38, 160, 10);
+          ctx.fillStyle = VEC; ctx.fillRect(W - 182, 40, 156 * (energy / ENERGY_MAX), 6);
+          if (api.isHuman('thrower')) {
+            const names = { 1: 'SMALL', 2: 'MEDIUM', 3: 'BIG' };
+            [1, 2, 3].forEach((k, i) => D.text(ctx, `${k} ${names[k]}`, W - 300 + i * 100, H - 20, { size: 9, pixel: true, color: k === size ? VEC : '#4a5a78' }));
+          }
+          if (api.isHuman('pilot') && api.time < 4) D.text(ctx, 'SHIFT = HYPERSPACE', W / 2, H - 20, { size: 9, pixel: true, color: '#6f86b0', align: 'center' });
         },
+        score: () => score,
         _state: () => ({ wave, lives, rocks: rocks.length, score })
       };
     }

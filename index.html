@@ -3,59 +3,89 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BlueBid Arcade — the cocktail cabinet</title>
-  <meta name="description" content="Seven arcade games on one page. Every game can be played by a human or the computer, on either side.">
+  <title>Cocktail Cabinet — BlueBid Arcade</title>
+  <meta name="description" content="Seven arcade games in one cabinet. Every game plays both ways: take either side yourself, or hand it to the computer.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f7cff'/%3E%3Crect x='8' y='8' width='6' height='6' fill='white'/%3E%3Crect x='18' y='8' width='6' height='6' fill='white'/%3E%3Crect x='8' y='18' width='16' height='6' fill='white'/%3E%3C/svg%3E">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Crect width='16' height='16' fill='%23120a24'/%3E%3Crect x='3' y='2' width='10' height='2' fill='%23ff3fa4'/%3E%3Crect x='2' y='4' width='12' height='7' fill='%23ffd23f'/%3E%3Crect x='4' y='6' width='2' height='2' fill='%23120a24'/%3E%3Crect x='10' y='6' width='2' height='2' fill='%23120a24'/%3E%3Crect x='3' y='11' width='3' height='3' fill='%233fe0ff'/%3E%3Crect x='10' y='11' width='3' height='3' fill='%233fe0ff'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/cabinet.css">
 </head>
 <body>
-  <!-- ============ CABINET (menu) ============ -->
-  <main id="cabinet" class="view">
-    <header class="hero">
-      <a class="brand" href="https://bluebid.online">bluebid.online</a>
-      <h1>The Cocktail Cabinet</h1>
-      <p class="lede">Seven arcade games, and every one plays both ways. Take either side yourself, hand it to the computer, or sit back and watch two computers fight it out.</p>
-    </header>
-    <section id="grid" class="grid" aria-label="Games"></section>
-    <footer class="foot">Built by Oriel Zer · static HTML, CSS &amp; JavaScript · no servers, no API keys</footer>
-  </main>
+  <div class="hall">
+    <div class="machine" id="machine">
+      <!-- marquee: lit header panel; changes to each game's own marquee -->
+      <header class="marquee" id="marquee">
+        <div class="marquee-inner">
+          <span class="marquee-kicker" id="marqueeKicker">BlueBid Arcade presents</span>
+          <h1 class="marquee-title" id="marqueeTitle">Cocktail Cabinet</h1>
+          <span class="marquee-sub" id="marqueeSub">7 games · human or CPU on either side</span>
+        </div>
+      </header>
 
-  <!-- ============ STAGE (one game) ============ -->
-  <main id="stage" class="view" hidden>
-    <div class="stagebar">
-      <button class="btn ghost" id="backBtn" type="button">← Cabinet</button>
-      <h2 id="gameTitle">Game</h2>
-      <div class="stagebtns">
-        <button class="btn ghost" id="pauseBtn" type="button" disabled>Pause</button>
-        <button class="btn ghost" id="restartBtn" type="button" disabled>Restart</button>
-      </div>
-    </div>
+      <!-- screen -->
+      <div class="bezel">
+        <div class="crt" id="crt">
+          <!-- ===== GAME SELECT (attract mode) ===== -->
+          <section class="select" id="select" aria-label="Game select">
+            <div class="sel-bar">
+              <span>Select game</span>
+              <span class="blink-slow" id="credits">Free play</span>
+            </div>
+            <div class="sel-body">
+              <ol class="game-list" id="gameList"></ol>
+              <div class="sel-preview">
+                <div class="preview-screen">
+                  <canvas id="preview" width="800" height="600" aria-label="Demo of the selected game"></canvas>
+                  <span class="demo-tag">Demo</span>
+                </div>
+                <div class="sel-info">
+                  <p class="sel-orig" id="selOrig"></p>
+                  <p class="sel-flip" id="selFlip"></p>
+                </div>
+                <div class="hiscores" id="selScores"></div>
+              </div>
+            </div>
+            <button class="press-start" id="pressStart" type="button"><span class="blink">Press start</span></button>
+          </section>
 
-    <div class="stagewrap">
-      <div class="screen">
-        <canvas id="screen" width="800" height="600" aria-label="Game screen"></canvas>
-        <div id="overlay" class="overlay">
-          <div class="card">
-            <p class="kicker" id="ovKicker">Choose who plays</p>
-            <h3 id="ovTitle">Game</h3>
-            <p id="ovText" class="ovtext"></p>
-            <div id="sidePickers" class="pickers"></div>
-            <div class="ovbtns" id="ovBtns"></div>
-          </div>
+          <!-- ===== PLAYING ===== -->
+          <section class="play" id="play" hidden aria-label="Game">
+            <canvas id="screen" width="800" height="600" aria-label="Game screen"></canvas>
+            <div class="screen-overlay" id="overlay" hidden>
+              <div class="ov" id="ovBox"></div>
+            </div>
+          </section>
+
+          <div class="scanlines" aria-hidden="true"></div>
         </div>
       </div>
 
-      <aside class="info">
-        <h4>How it works</h4>
-        <p id="gameBlurb"></p>
-        <div id="sideInfo"></div>
-        <p class="keys">P / Esc pauses · R restarts</p>
-      </aside>
+      <!-- control panel: the keys, drawn like an arcade control deck -->
+      <div class="deck" aria-label="Controls">
+        <div class="stick" aria-hidden="true"><span class="ball"></span></div>
+        <div class="deck-buttons">
+          <button class="arc-btn red" id="btnBack" type="button" title="Back (Esc)"><span>Back</span></button>
+          <button class="arc-btn yellow" id="btnStart" type="button" title="Start (Enter)"><span>Start</span></button>
+          <button class="arc-btn blue" id="btnPause" type="button" title="Pause (P)"><span>Pause</span></button>
+          <button class="arc-btn green" id="btnSound" type="button" title="Sound on/off (M)" aria-pressed="true"><span id="soundLabel">Sound</span></button>
+        </div>
+        <p class="deck-help" id="deckHelp">↑ ↓ choose · Enter start · Esc back · M sound</p>
+      </div>
     </div>
-  </main>
+
+    <!-- instruction card, like the printed card under the glass on a cabinet -->
+    <section class="card" id="card" aria-label="How to play">
+      <h2 id="cardTitle">How to play</h2>
+      <div id="cardBody"></div>
+    </section>
+
+    <footer class="small-print">
+      <span>BlueBid Arcade · built by Oriel Zer</span>
+      <span>Static HTML, CSS &amp; JavaScript · no servers · no API keys</span>
+      <a href="https://bluebid.online">bluebid.online</a>
+    </footer>
+  </div>
 
   <script src="js/engine.js"></script>
   <script src="js/games/snake.js"></script>

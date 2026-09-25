@@ -10,7 +10,7 @@
    ========================================================================== */
 (function () {
   'use strict';
-  const { C, util: U, draw: D } = Arcade;
+  const { util: U, draw: D } = Arcade;
 
   const W = 800, H = 600, GROUND = 560;
   const BIRD_X = 220, BIRD_R = 13;
@@ -18,33 +18,41 @@
   const COL_W = 70, SPACING = 280, CAP = 5;   // CAP = the lip on each pipe end (part of the hitbox)
   const TARGET = 30;
 
+  // daytime pixel-art palette in the spirit of Flappy Bird (2013)
+  const SKY = '#4ec0ca', CLOUD = '#e9fcd9', CITY = '#a6dfc6', CITY_WIN = '#d1f2e0', BUSH = '#5ee270', BUSH_D = '#3fb752';
+  const GROUND_C = '#ded895', GRASS_A = '#73bf2e', GRASS_B = '#9ce659', DIRT_LINE = '#d0c874';
+  const PIPE = '#73bf2e', PIPE_HI = '#9ce659', PIPE_LO = '#558022', OUTLINE = '#543847';
+  const MEDALS = [{ at: 30, name: 'Gold', color: '#f5c542' }, { at: 20, name: 'Silver', color: '#d9d9d9' }, { at: 10, name: 'Bronze', color: '#d7883a' }];
+
   Arcade.register({
     id: 'splat',
     title: 'Splat',
-    tagline: 'A flappy flier against the builder who lays out the columns.',
-    flip: 'you lay out the columns, the computer flies.',
-    blurb: 'The flier needs to clear 30 columns. The builder wins on a splat. Each gap can only move so far from the one before it, so every layout can be flown. Every 5 columns, the gaps shrink and the scroll speeds up.',
-    menuText: 'The flier wins after <b>30 columns</b>. The builder wins on a <b>splat</b>. Gaps can only move so far each column, so every run is flyable.',
+    year: '2013 · after Flappy Bird (.GEARS)',
+    history: 'Flappy Bird: one tap to flap, one point per pipe, bronze/silver/gold medals at 10/20/30. Its gravity roughly matches real gravity for a bird that size, and every tap resets the bird to the same upward speed.',
+    tagline: 'A flappy bird against the player who builds the pipes.',
+    flip: 'you lay out the pipes, the computer flies.',
+    blurb: 'The bird needs 30 pipes for the win (and a gold medal). The builder wins on a splat.',
+    menuText: 'The bird wins at <b>30 pipes</b>: bronze at 10, silver at 20, gold at 30. The builder wins on a <b>splat</b>. A gap can only move so far from the last one, so every layout can be flown.',
+    scoreSide: 'flier', scoreName: 'pipes',
     sides: [
-      { key: 'flier', label: 'Flier', human: 'Space, ↑, W or click to flap.', cpu: 'Only sees columns already on screen. Before each flap it simulates both choices a second ahead using the real physics. It makes timing slips early on and tightens up later.' },
-      { key: 'builder', label: 'Builder', human: 'Move the mouse up and down (or use ↑ / ↓) to set the gap of the column coming in on the right. It locks when it scrolls in.', cpu: 'Starts with gentle random gaps, then pulls each gap as far from the flier as the rules allow.' }
+      { key: 'flier', label: 'Bird', human: 'Space, ↑, W or click to flap. Tap calmly and in rhythm — frantic tapping is how people crash.', cpu: 'Watches the next gap and taps when the bird sinks too low, with human timing wobble. Panics and over-taps when a gap is far above; drops too long when it\'s far below.' },
+      { key: 'builder', label: 'Builder', human: 'Move the mouse up/down (or ↑ / ↓) to set the gap of the pipe coming in on the right. It locks when it scrolls in.', cpu: 'Drags its cursor like a mouse: gentle gaps at first, then zig-zags, staircases and the odd mean switch.' }
     ],
     defaults: { flier: 'cpu', builder: 'human' },
 
     thumb(ctx, w, h) {
       const s = w / W;
-      const g = ctx.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, '#0d1633'); g.addColorStop(1, '#070b17');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = SKY; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = CITY; for (let i = 0; i < 8; i++) ctx.fillRect(i * 55 * s * 2, (GROUND - 90 - (i % 3) * 25) * s, 80 * s, 200 * s);
       [[320, 250], [600, 380]].forEach(([x, gy]) => {
-        ctx.fillStyle = C.good;
-        ctx.fillRect(x * s, 0, COL_W * s, (gy - 90) * s);
-        ctx.fillRect(x * s, (gy + 90) * s, COL_W * s, h);
+        ctx.fillStyle = OUTLINE; ctx.fillRect((x - 3) * s, 0, (COL_W + 6) * s, (gy - 88) * s); ctx.fillRect((x - 3) * s, (gy + 88) * s, (COL_W + 6) * s, h);
+        ctx.fillStyle = PIPE; ctx.fillRect(x * s, 0, COL_W * s, (gy - 90) * s); ctx.fillRect(x * s, (gy + 90) * s, COL_W * s, h);
       });
-      ctx.fillStyle = '#ffd24a';
-      ctx.beginPath(); ctx.arc(BIRD_X * s, 290 * s, 14, 0, 7); ctx.fill();
-      ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(BIRD_X * s + 5, 286 * s, 3, 0, 7); ctx.fill();
-      ctx.fillStyle = '#1b2a4d'; ctx.fillRect(0, GROUND * s, w, h);
+      ctx.fillStyle = GROUND_C; ctx.fillRect(0, GROUND * s, w, h);
+      ctx.fillStyle = GRASS_A; ctx.fillRect(0, GROUND * s, w, 6);
+      ctx.fillStyle = '#f8c43a'; ctx.fillRect(BIRD_X * s - 12, 280 * s - 9, 24, 18);
+      ctx.fillStyle = '#fff'; ctx.fillRect(BIRD_X * s + 2, 280 * s - 8, 8, 8);
+      ctx.fillStyle = '#f16e3a'; ctx.fillRect(BIRD_X * s + 8, 280 * s + 1, 10, 6);
     },
 
     create(api) {
@@ -188,18 +196,21 @@
         if (!bird.alive) return;
         started = true;
         bird.vy = FLAP_V;
+        api.sfx('flap');
       }
 
       // Hitting a pipe knocks the bird out: it flashes, tumbles and drops to the
       // ground, and only then goes SPLAT. Hitting the ground is an instant splat.
       let fall = null;   // {t, landed}
-      let shake = 0, scrollT = 0;
+      let shake = 0, scrollT = 0, hitFlash = 0, wingT = 0;
       function knockOut() {
         bird.alive = false;
+        hitFlash = 0.12;
+        api.sfx('hit');
         const onGround = bird.y + BIRD_R >= GROUND - 1;
         fall = { t: 0, landed: false, spin: 0 };
         bird.vy = onGround ? 0 : Math.min(bird.vy, 0) * 0.3 - 140;     // a little knock-back pop
-        if (onGround) land();
+        if (onGround) land(); else setTimeout(() => api.sfx('fall'), 250);
       }
       function land() {
         fall.landed = true;
@@ -210,7 +221,7 @@
           const a = U.rand(Math.PI, Math.PI * 2), sp = U.rand(80, 360);
           particles.push({ x: BIRD_X, y: GROUND - 4, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: U.rand(0.5, 1.2), feather: Math.random() < 0.4 });
         }
-        api.end('builder', `SPLAT after ${passed} column${passed === 1 ? '' : 's'}.`, 1200);
+        api.end('builder', `SPLAT after ${passed} pipe${passed === 1 ? '' : 's'}.`, 1200);
       }
 
       return {
@@ -218,6 +229,8 @@
           for (const p of particles) { p.vy += (p.feather ? 250 : 900) * dt; p.x += p.vx * dt * (p.feather ? 0.6 : 1); p.y += p.vy * dt; p.t -= dt; }
           particles = particles.filter(p => p.t > 0);
           if (shake > 0) shake -= dt;
+          if (hitFlash > 0) hitFlash -= dt;
+          wingT += dt * (bird.vy < 0 ? 14 : 7);
           if (splat) splat.t += dt;
           if (fall) {
             fall.t += dt;
@@ -260,8 +273,11 @@
             if (!c.passed && c.x + COL_W + CAP < BIRD_X - BIRD_R) {
               c.passed = true;
               passed++;
-              if (passed >= TARGET) return api.end('flier', `Cleared all ${TARGET} columns.`);
-              if (passed % 5 === 0) api.toast(`Level ${level()} — tighter gaps`, C.warn);
+              api.sfx('point');
+              if (passed >= TARGET) { api.sfx('win'); return api.end('flier', `All ${TARGET} pipes cleared: gold medal.`); }
+              if (passed === 10) api.toast('Bronze medal!');
+              else if (passed === 20) api.toast('Silver medal!');
+              else if (passed % 5 === 0) api.toast('Faster — tighter gaps');
             }
           }
         },
@@ -280,98 +296,133 @@
           if (type === 'down' && api.isHuman('flier') && !api.isHuman('builder')) flap();
         },
 
+        // Flappy-style daytime pixel art: flat sky, clouds, a pale city, bushes,
+        // outlined green pipes, striped ground, big outlined score numerals
         draw(ctx) {
           ctx.save();
           if (shake > 0) ctx.translate((Math.random() - 0.5) * 10 * shake / 0.35, (Math.random() - 0.5) * 8 * shake / 0.35);
-          const g = ctx.createLinearGradient(0, 0, 0, H);
-          g.addColorStop(0, '#0d1633'); g.addColorStop(1, '#070b17');
-          ctx.fillStyle = g; ctx.fillRect(-10, -10, W + 20, H + 20);
-          // distant skyline for depth
-          ctx.fillStyle = '#0f1a36';
-          for (let i = 0; i < 12; i++) {
-            const bx = ((i * 97 - scrollT * 20) % 900 + 900) % 900 - 50;
-            ctx.fillRect(bx, GROUND - 60 - (i * 37) % 90, 60, 200);
+          ctx.fillStyle = SKY; ctx.fillRect(-10, -10, W + 20, H + 20);
+          // clouds, city, bushes (parallax at different speeds)
+          const par = (sp, span) => -((scrollT * sp) % span);
+          ctx.fillStyle = CLOUD;
+          for (let x = par(8, 160) - 160; x < W + 160; x += 160) { ctx.beginPath(); ctx.arc(x + 40, GROUND - 150, 44, 0, 7); ctx.arc(x + 95, GROUND - 160, 54, 0, 7); ctx.arc(x + 140, GROUND - 145, 38, 0, 7); ctx.fill(); }
+          ctx.fillRect(0, GROUND - 150, W, 60);
+          for (let x = par(18, 240) - 240, i = 0; x < W + 240; x += 40, i++) {
+            const bh = 40 + ((i * 37) % 5) * 14;
+            ctx.fillStyle = CITY; ctx.fillRect(x, GROUND - 60 - bh, 38, bh + 60);
+            ctx.fillStyle = CITY_WIN;
+            for (let wy = GROUND - 52 - bh; wy < GROUND - 60; wy += 12) { ctx.fillRect(x + 6, wy, 6, 6); ctx.fillRect(x + 22, wy, 6, 6); }
           }
+          ctx.fillStyle = BUSH;
+          for (let x = par(30, 120) - 120; x < W + 120; x += 60) { ctx.beginPath(); ctx.arc(x, GROUND - 8, 34, 0, 7); ctx.fill(); }
+          ctx.fillStyle = BUSH_D; ctx.fillRect(0, GROUND - 12, W, 12);
 
           for (const c of cols) drawColumn(ctx, c.x, c.gap, c.h, 1);
 
-          // the builder's pending column (preview at the right edge) — shown for the
-          // computer builder too, so you can watch it "drag" the next gap into place
+          // the builder's next pipe (preview at the right edge) — shown for the
+          // computer builder too, so you can watch it drag the gap into place
           if (!fall) {
             const pg = clampGap(pendingGap);
-            ctx.globalAlpha = 0.45;
+            ctx.globalAlpha = 0.5;
             drawColumn(ctx, W - COL_W - 6, pg, gapH(), 0);
             ctx.globalAlpha = 1;
-            // allowed band
             const lo = Math.max(gapMin(), lastGap - maxDelta()), hi = Math.min(gapMax(), lastGap + maxDelta());
-            ctx.fillStyle = 'rgba(79,124,255,.5)';
-            ctx.fillRect(W - 4, lo, 4, hi - lo);
-            D.text(ctx, `next gap ${Math.max(0, untilSpawn).toFixed(1)}s`, W - COL_W / 2 - 6, pg, { size: 11, color: '#fff', align: 'center' });
+            ctx.fillStyle = OUTLINE; ctx.fillRect(W - 5, lo, 5, hi - lo);
+            D.text(ctx, 'NEXT', W - COL_W / 2 - 6, pg, { size: 10, pixel: true, color: '#fff', align: 'center' });
           }
 
-          // ground
-          ctx.fillStyle = '#1b2a4d'; ctx.fillRect(0, GROUND, W, H - GROUND);
-          ctx.fillStyle = '#26324f';
-          for (let x = -((scrollT * speed()) % 40); x < W; x += 40) ctx.fillRect(x, GROUND + 8, 22, 4);
+          // ground with scrolling stripes
+          ctx.fillStyle = GROUND_C; ctx.fillRect(0, GROUND, W, H - GROUND);
+          ctx.fillStyle = OUTLINE; ctx.fillRect(0, GROUND, W, 3);
+          for (let x = -((scrollT * speed()) % 24); x < W; x += 24) {
+            ctx.fillStyle = GRASS_A; ctx.fillRect(x, GROUND + 3, 12, 12);
+            ctx.fillStyle = GRASS_B; ctx.fillRect(x + 12, GROUND + 3, 12, 12);
+          }
+          ctx.fillStyle = DIRT_LINE; ctx.fillRect(0, GROUND + 15, W, 3);
 
-          // bird (flashes and gets dizzy X-eyes when knocked out)
+          // the bird: pixel body, flapping wing, white eye, orange beak, dark outline
           if (!(splat && splat.t > 0)) {
             ctx.save();
             ctx.translate(BIRD_X, bird.y);
             ctx.rotate(bird.rot);
             const flashOn = fall && fall.t < 0.25 && Math.floor(fall.t * 20) % 2 === 0;
-            ctx.fillStyle = flashOn ? '#ffffff' : '#ffd24a';
-            ctx.beginPath(); ctx.arc(0, 0, BIRD_R, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#f0a83c';
-            ctx.beginPath(); ctx.ellipse(-4, 3, 7, 4, 0.4 + Math.sin(api.time * 20) * 0.4, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(5, -4, 4.5, 0, 7); ctx.fill();
-            if (fall) {
-              ctx.strokeStyle = '#111'; ctx.lineWidth = 1.8;
-              ctx.beginPath(); ctx.moveTo(3, -6.5); ctx.lineTo(8, -1.5); ctx.moveTo(8, -6.5); ctx.lineTo(3, -1.5); ctx.stroke();
-            } else { ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(6.5, -4, 2.2, 0, 7); ctx.fill(); }
-            ctx.fillStyle = '#f25c69'; ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(19, 3); ctx.lineTo(11, 6); ctx.fill();
+            ctx.fillStyle = OUTLINE; ctx.fillRect(-16, -12, 32, 24);
+            ctx.fillStyle = flashOn ? '#ffffff' : '#f8c43a'; ctx.fillRect(-14, -10, 28, 20);
+            ctx.fillStyle = flashOn ? '#ffffff' : '#fbe29a'; ctx.fillRect(-14, -10, 28, 6);
+            // wing
+            const wy = fall ? 0 : [-4, 0, 4, 0][Math.floor(wingT) % 4];
+            ctx.fillStyle = OUTLINE; ctx.fillRect(-15, -1 + wy, 14, 10);
+            ctx.fillStyle = '#fff8e0'; ctx.fillRect(-13, 1 + wy, 10, 6);
+            // eye
+            ctx.fillStyle = OUTLINE; ctx.fillRect(2, -11, 13, 13);
+            ctx.fillStyle = '#fff'; ctx.fillRect(3, -10, 11, 11);
+            if (fall) { ctx.fillStyle = OUTLINE; ctx.fillRect(5, -8, 2, 2); ctx.fillRect(9, -4, 2, 2); ctx.fillRect(9, -8, 2, 2); ctx.fillRect(5, -4, 2, 2); ctx.fillRect(7, -6, 2, 2); }
+            else { ctx.fillStyle = OUTLINE; ctx.fillRect(9, -7, 4, 6); }
+            // beak
+            ctx.fillStyle = OUTLINE; ctx.fillRect(8, 2, 14, 10);
+            ctx.fillStyle = '#f16e3a'; ctx.fillRect(9, 3, 12, 3); ctx.fillStyle = '#e25a28'; ctx.fillRect(9, 7, 11, 4);
             ctx.restore();
           }
           // a flattened bird on the ground
           if (splat) {
-            ctx.fillStyle = '#ffd24a';
-            ctx.beginPath(); ctx.ellipse(BIRD_X, GROUND - 3, 22, 5, 0, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#f25c69'; ctx.fillRect(BIRD_X + 18, GROUND - 5, 8, 3);
+            ctx.fillStyle = OUTLINE; ctx.fillRect(BIRD_X - 24, GROUND - 8, 48, 8);
+            ctx.fillStyle = '#f8c43a'; ctx.fillRect(BIRD_X - 22, GROUND - 6, 44, 5);
+            ctx.fillStyle = '#f16e3a'; ctx.fillRect(BIRD_X + 22, GROUND - 5, 8, 3);
           }
           for (const p of particles) {
             ctx.globalAlpha = Math.min(1, p.t * 2);
-            ctx.fillStyle = p.feather ? '#f0a83c' : '#ffd24a';
-            if (p.feather) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.t * 6); ctx.fillRect(-5, -1.5, 10, 3); ctx.restore(); }
-            else { ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, 7); ctx.fill(); }
+            ctx.fillStyle = p.feather ? '#fff8e0' : '#f8c43a';
+            if (p.feather) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.t * 6); ctx.fillRect(-5, -2, 10, 4); ctx.restore(); }
+            else ctx.fillRect(p.x - 3, p.y - 3, 6, 6);
           }
           ctx.globalAlpha = 1;
           ctx.restore();
-          if (splat) D.text(ctx, 'SPLAT!', W / 2, H / 2 - 40, { size: 56, pixel: true, color: C.bad, align: 'center', glow: C.bad });
-          else if (fall) D.text(ctx, 'BONK!', BIRD_X + 40, bird.y - 30, { size: 22, pixel: true, color: C.warn, align: 'left' });
+          if (hitFlash > 0) { ctx.fillStyle = `rgba(255,255,255,${hitFlash / 0.12})`; ctx.fillRect(0, 0, W, H); }
 
-          if (api.isHuman('flier') && !started && bird.alive)
-            D.text(ctx, 'Space / click to flap', BIRD_X, bird.y - 40, { size: 13, color: C.muted, align: 'center' });
-
+          // big score, Flappy style (white with a dark outline)
+          outlined(ctx, String(passed), W / 2, 70, 40);
+          if (splat) outlined(ctx, 'SPLAT!', W / 2, H / 2 - 40, 44, '#f16e3a');
+          if (api.isHuman('flier') && !started && bird.alive) {
+            outlined(ctx, 'GET READY', W / 2, 170, 26, '#f8c43a');
+            D.text(ctx, 'SPACE / CLICK TO FLAP', W / 2, 212, { size: 12, pixel: true, color: '#fff', align: 'center' });
+          }
           const who = k => (api.isHuman(k) ? 'YOU' : 'CPU');
-          D.hud(ctx, [
-            { text: `FLIER · ${who('flier')}`, color: '#ffd24a', pixel: true },
-            { text: `${passed}/${TARGET}   LV ${level()}`, align: 'center', pixel: true },
-            { text: `${who('builder')} · BUILDER`, color: C.good, align: 'right', pixel: true }
-          ]);
+          D.text(ctx, `BIRD ${who('flier')}`, 14, 22, { size: 10, pixel: true, color: '#fff' });
+          D.text(ctx, `BUILDER ${who('builder')}`, W - 14, 22, { size: 10, pixel: true, color: '#fff', align: 'right' });
+          const m = MEDALS.find(x => passed >= x.at);
+          if (m) { ctx.fillStyle = OUTLINE; ctx.beginPath(); ctx.arc(26, 52, 13, 0, 7); ctx.fill(); ctx.fillStyle = m.color; ctx.beginPath(); ctx.arc(26, 52, 10, 0, 7); ctx.fill(); }
         },
+        score: () => passed,
+        medal: () => MEDALS.find(x => passed >= x.at) || null,
+        endTitle: () => (passed >= TARGET ? 'Gold medal' : 'Game over'),
         _state: () => ({ passed, alive: bird.alive, y: bird.y, vy: bird.vy, cols: cols.map(c => [Math.round(c.x), Math.round(c.gap), c.h]) })
       };
 
+      function outlined(ctx, str, x, y, size, fill = '#fff') {
+        ctx.save();
+        ctx.font = `${size}px ${D.FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineWidth = Math.max(4, size / 5); ctx.strokeStyle = OUTLINE; ctx.lineJoin = 'round';
+        ctx.strokeText(str, x, y); ctx.fillStyle = fill; ctx.fillText(str, x, y);
+        ctx.restore();
+      }
+
+      // an outlined green pipe with a lighter left edge, darker right edge and a wider lip
       function drawColumn(ctx, x, gap, h, solid) {
         const top = gap - h / 2, bot = gap + h / 2;
-        const grad = ctx.createLinearGradient(x, 0, x + COL_W, 0);
-        grad.addColorStop(0, '#1f9a5a'); grad.addColorStop(0.5, '#3fdc8a'); grad.addColorStop(1, '#1a7d4a');
-        ctx.fillStyle = grad;
-        ctx.fillRect(x, 0, COL_W, top);
-        ctx.fillRect(x, bot, COL_W, GROUND - bot);
-        ctx.fillStyle = solid ? '#2fbf71' : '#4f7cff';
-        ctx.fillRect(x - CAP, top - 18, COL_W + CAP * 2, 18);
-        ctx.fillRect(x - CAP, bot, COL_W + CAP * 2, 18);
+        const body = (y0, y1) => {
+          ctx.fillStyle = OUTLINE; ctx.fillRect(x - 2, y0, COL_W + 4, y1 - y0);
+          ctx.fillStyle = PIPE; ctx.fillRect(x, y0, COL_W, y1 - y0);
+          ctx.fillStyle = PIPE_HI; ctx.fillRect(x + 6, y0, 8, y1 - y0);
+          ctx.fillStyle = PIPE_LO; ctx.fillRect(x + COL_W - 12, y0, 8, y1 - y0);
+        };
+        const lip = y => {
+          ctx.fillStyle = OUTLINE; ctx.fillRect(x - CAP - 2, y - 2, COL_W + CAP * 2 + 4, 22);
+          ctx.fillStyle = solid ? PIPE : '#8fd3ff'; ctx.fillRect(x - CAP, y, COL_W + CAP * 2, 18);
+          ctx.fillStyle = PIPE_HI; ctx.fillRect(x - CAP + 4, y, 8, 18);
+          ctx.fillStyle = PIPE_LO; ctx.fillRect(x + COL_W + CAP - 14, y, 8, 18);
+        };
+        body(-2, top - 18); lip(top - 18);
+        body(bot + 18, GROUND); lip(bot);
       }
     }
   });

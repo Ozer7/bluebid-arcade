@@ -15,7 +15,7 @@ for (let m = 0; m < +n; m++) {
   let over = null, time = 0;
   const roles = {}; def.sides.forEach(s => roles[s.key] = 'cpu');
   const api = { W: 800, H: 600, roles, isHuman: () => false, humanCount: () => 0, keys: new Set(), pointer: { x: 0, y: 0 },
-    get time() { return time; }, end(w, d) { if (!over) over = { w, d }; }, toast() {} };
+    get time() { return time; }, end(w, d) { if (!over) over = { w, d }; }, toast() {}, sfx() {} };
   const g = def.create(api);
   const t0 = Date.now();
   while (!over && time < +maxS) { g.update(1 / 60); time += 1 / 60; }

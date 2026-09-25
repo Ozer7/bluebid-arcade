@@ -3,88 +3,89 @@
 <meta name="description" content="Chat for two minutes, then guess: were you talking to a person or to Claude?">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
-  /* Single dark look, same palette as the BlueBid Arcade cabinet */
+  /* Teletype terminal: green phosphor on black, like the 1950 "imitation game"
+     played over a teleprinter, seen through an arcade CRT */
   :root{
     color-scheme:dark;
-    --bg:#0b1020; --bg-soft:#121a30; --card:#151e38; --card-hi:#1c2847;
-    --line:#26324f; --text:#e9edf7; --muted:#98a4c0; --dim:#6f7d9c;
-    --accent:#4f7cff; --accent-soft:rgba(79,124,255,.16);
-    --human:#2fbf71; --ai:#f0a83c; --bad:#f25c69;
-    --pixel:"Silkscreen",ui-monospace,Menlo,Consolas,monospace;
-    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --bg:#020a04; --glass:#041408; --line:#0f5a26; --text:#7dff9a; --bright:#c8ffd4;
+    --dim:#3f9a58; --amber:#ffc23f; --bad:#ff5a5a;
+    --term:"VT323",ui-monospace,Menlo,Consolas,monospace;
+    --pixel:"Press Start 2P",ui-monospace,monospace;
   }
   [hidden]{display:none!important}
-  html,body{height:100%}
-  body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.5;
-    background-image:radial-gradient(900px 380px at 50% -140px,rgba(79,124,255,.18),transparent 70%)}
-  .wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:28px 40px;display:flex;flex-direction:column;gap:18px;min-height:100%;box-sizing:border-box}
-  header{text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center}
-  .brand{font-family:var(--pixel);font-size:12px;color:var(--accent);letter-spacing:.06em;border:1px solid rgba(79,124,255,.35);padding:3px 11px;border-radius:999px}
-  h1{font-family:var(--pixel);font-size:clamp(34px,8vw,52px);line-height:1;margin:6px 0 0;letter-spacing:.02em;text-shadow:0 0 26px rgba(79,124,255,.35)}
-  .lede{color:var(--muted);margin:0;max-width:34em;text-wrap:balance}
-  .panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:14px}
-  .panel h2{margin:0;font-size:18px;text-wrap:balance}
-  .panel p{margin:0;color:var(--muted)}
-  .rules{margin:0;padding-left:18px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
-  .rules b{color:var(--text);font-weight:600}
-  .btn{font:inherit;font-weight:650;font-size:15px;cursor:pointer;border-radius:12px;padding:11px 18px;border:1px solid var(--line);background:var(--bg-soft);color:var(--text)}
-  .btn:hover:not(:disabled){border-color:var(--accent)}
-  .btn:focus-visible,.guess:focus-visible,textarea:focus-visible{outline:3px solid rgba(79,124,255,.55);outline-offset:2px}
-  .btn:disabled{opacity:.45;cursor:default}
-  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  html,body{height:100%;margin:0}
+  body{background:#000;color:var(--text);font-family:var(--term);font-size:22px;line-height:1.25;
+    background-image:radial-gradient(ellipse at center,#06200d 0%,#000 75%)}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.28) 0 1px,transparent 1px 3px);z-index:9}
+  .wrap{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:24px 40px;display:flex;flex-direction:column;gap:16px;box-sizing:border-box}
+  .crt{border:3px solid var(--line);border-radius:18px;background:var(--glass);padding:18px 20px;
+    box-shadow:0 0 0 6px #0a0a0a,0 0 0 8px #1d1d1d,inset 0 0 60px rgba(0,0,0,.8),0 0 40px rgba(60,255,120,.12);
+    text-shadow:0 0 6px rgba(125,255,154,.55)}
+  header{text-align:center}
+  .brand{font-family:var(--pixel);font-size:10px;color:var(--amber);letter-spacing:.08em}
+  h1{font-family:var(--pixel);font-size:clamp(26px,7vw,44px);margin:14px 0 8px;color:var(--bright);letter-spacing:.04em}
+  .lede{margin:0;color:var(--dim)}
+  .panel{display:flex;flex-direction:column;gap:12px}
+  .panel h2{font-family:var(--pixel);font-size:13px;margin:0;color:var(--amber);line-height:1.6}
+  .panel p{margin:0}
+  .rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+  .rules li::before{content:"> ";color:var(--dim)}
+  .rules b{color:var(--bright);font-weight:400}
+  .btn{font-family:var(--pixel);font-size:12px;cursor:pointer;padding:12px 16px;border:2px solid var(--text);background:transparent;color:var(--text);text-transform:uppercase}
+  .btn:hover:not(:disabled),.btn:focus-visible{background:var(--text);color:#000;outline:none;text-shadow:none}
+  .btn:disabled{opacity:.35;cursor:default}
+  .btn.primary{border-color:var(--amber);color:var(--amber)}
+  .btn.primary:hover:not(:disabled),.btn.primary:focus-visible{background:var(--amber);color:#000}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  .note{font-size:13px;color:var(--dim)}
-  .status{display:flex;gap:8px;flex-wrap:wrap}
-  .chip{font-size:12px;font-weight:650;padding:3px 9px;border-radius:999px;background:var(--bg-soft);color:var(--muted);border:1px solid var(--line)}
-  .chip.ok{color:var(--human);border-color:rgba(47,191,113,.35)}
-  .chip.no{color:var(--bad);border-color:rgba(242,92,105,.35)}
-
-  /* searching */
-  .radar{width:120px;height:120px;border-radius:50%;margin:6px auto;position:relative;
-    background:radial-gradient(circle,rgba(79,124,255,.18) 0 30%,transparent 31%),
-      repeating-radial-gradient(circle,transparent 0 19px,rgba(79,124,255,.25) 20px 21px);
-    border:1px solid rgba(79,124,255,.35);overflow:hidden}
-  .radar::after{content:"";position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(79,124,255,.55),transparent 25%);animation:spin 1.6s linear infinite}
-  @keyframes spin{to{transform:rotate(1turn)}}
-  .big{font-family:var(--pixel);font-size:22px;text-align:center}
+  .note{font-size:19px;color:var(--dim)}
+  .status{display:flex;gap:14px;flex-wrap:wrap}
+  .chip{font-size:19px;color:var(--dim)}
+  .chip::before{content:"[ ] "}
+  .chip.ok{color:var(--text)} .chip.ok::before{content:"[OK] "}
+  .chip.no{color:var(--bad)} .chip.no::before{content:"[--] "}
+  .big{font-family:var(--pixel);font-size:16px;text-align:center;color:var(--bright)}
   .center{text-align:center}
-
-  /* chat */
-  .chathead{display:flex;justify-content:space-between;align-items:center;gap:10px}
-  .timer{font-family:var(--pixel);font-size:26px;font-variant-numeric:tabular-nums}
+  .modem{font-size:20px;color:var(--dim);min-height:6.5em;white-space:pre-wrap}
+  .chathead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-bottom:1px dashed var(--line);padding-bottom:8px}
+  .timer{font-family:var(--pixel);font-size:18px;font-variant-numeric:tabular-nums;color:var(--bright)}
   .timer.low{color:var(--bad)}
-  .log{display:flex;flex-direction:column;gap:8px;min-height:260px;max-height:48vh;overflow-y:auto;padding:4px 2px}
-  .msg{max-width:78%;padding:8px 12px;border-radius:16px;white-space:pre-wrap;overflow-wrap:anywhere}
-  .msg.me{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:5px}
-  .msg.them{align-self:flex-start;background:var(--card-hi);border:1px solid var(--line);border-bottom-left-radius:5px}
-  .sys{align-self:center;font-size:12.5px;color:var(--dim)}
-  .typing{align-self:flex-start;color:var(--dim);font-size:13px;min-height:20px}
-  .typing span{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--dim);margin-right:3px;animation:blink 1s infinite}
-  .typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}
-  @keyframes blink{50%{opacity:.25}}
-  form{display:flex;gap:8px}
-  textarea{flex:1;resize:none;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-height:44px;max-height:120px;box-sizing:border-box}
-
-  /* guess + reveal */
+  .turn{font-family:var(--pixel);font-size:10px;line-height:1.6}
+  .turn.mine{color:var(--amber)} .turn.theirs{color:var(--dim)}
+  .log{display:flex;flex-direction:column;gap:2px;min-height:260px;max-height:46vh;overflow-y:auto;padding:4px 0}
+  .msg{white-space:pre-wrap;overflow-wrap:anywhere}
+  .msg.me{color:var(--amber)} .msg.me::before{content:"YOU> ";color:#a07a20}
+  .msg.them{color:var(--text)} .msg.them::before{content:"STRANGER> ";color:var(--dim)}
+  .msg.skip{color:var(--dim);font-style:italic}
+  .sys{color:var(--dim)} .sys::before{content:"** "}
+  .typing{color:var(--dim);min-height:1.2em}
+  .typing::after{content:"_";animation:cur 1s steps(1) infinite}
+  @keyframes cur{50%{opacity:0}}
+  form{display:flex;gap:8px;align-items:stretch}
+  .prompt{color:var(--amber);align-self:center}
+  textarea{flex:1;resize:none;font:inherit;color:var(--amber);background:#000;border:2px solid var(--line);padding:6px 10px;min-height:44px;box-sizing:border-box;caret-color:var(--amber);text-shadow:inherit}
+  textarea:focus{outline:none;border-color:var(--amber)}
+  textarea:disabled{opacity:.4}
+  .count{font-size:18px;color:var(--dim);text-align:right}
   .guesses{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .guess{font:inherit;cursor:pointer;border-radius:16px;padding:18px 12px;background:var(--bg-soft);color:var(--text);border:2px solid var(--line);display:flex;flex-direction:column;gap:4px;align-items:center}
-  .guess b{font-family:var(--pixel);font-size:22px}
-  .guess.h b{color:var(--human)} .guess.a b{color:var(--ai)}
-  .guess.h:hover{border-color:var(--human)} .guess.a:hover{border-color:var(--ai)}
-  .verdict{font-family:var(--pixel);font-size:30px;text-align:center;margin:0}
-  .verdict.right{color:var(--human)} .verdict.wrong{color:var(--bad)}
-  .score{font-variant-numeric:tabular-nums}
-  @media (prefers-reduced-motion:reduce){.radar::after,.typing span{animation:none}}
-  @media (max-width:420px){.guesses{grid-template-columns:1fr}.msg{max-width:88%}}
+  .guess{font:inherit;cursor:pointer;padding:18px 12px;background:transparent;color:var(--text);border:2px solid var(--line);display:flex;flex-direction:column;gap:8px;align-items:center}
+  .guess b{font-family:var(--pixel);font-size:18px;font-weight:400}
+  .guess.h b{color:var(--bright)} .guess.a b{color:var(--amber)}
+  .guess:hover,.guess:focus-visible{border-color:var(--amber);outline:none;background:rgba(255,194,63,.08)}
+  .verdict{font-family:var(--pixel);font-size:26px;text-align:center;margin:0}
+  .verdict.right{color:var(--bright)} .verdict.wrong{color:var(--bad)}
+  .blink{animation:cur 1s steps(1) infinite}
+  @media (prefers-reduced-motion:reduce){.typing::after,.blink{animation:none}}
+  @media (max-width:480px){.guesses{grid-template-columns:1fr}body{font-size:20px}}
 </style>
 
-<div class="wrap">
+<div class="wrap crt">
   <header>
     <span class="brand">BlueBid Arcade · game 7</span>
     <h1>Imitation</h1>
-    <p class="lede">You get two minutes to chat with someone. Then you guess whether it was a person or Claude.</p>
+    <p class="lede">Two minutes on the wire with a stranger. Then you guess: person, or Claude?</p>
   </header>
 
   <!-- LOBBY -->
@@ -93,6 +94,7 @@
     <ul class="rules">
       <li>Press <b>Find a match</b>. Matchmaking takes a few seconds either way, so how long you wait gives nothing away.</li>
       <li>If another player is searching at the same time, you're paired with them. If not, Claude plays the other side and tries to pass as a person.</li>
+      <li>You take <b>turns</b>, like the game Human or Not: one message each, up to <b>100 characters</b>, <b>20 seconds</b> to send it or your turn passes.</li>
       <li>Chat for <b>2:00</b>. You can lock in a guess early after 0:45.</li>
       <li>Guess <b>Human</b> or <b>AI</b>. If you played a person, they're guessing about you too.</li>
     </ul>
@@ -109,8 +111,8 @@
 
   <!-- SEARCHING -->
   <section class="panel" id="searching" hidden>
-    <div class="radar" aria-hidden="true"></div>
     <p class="big" id="searchText">Searching…</p>
+    <div class="modem" id="modem" aria-hidden="true"></div>
     <p class="center note" id="searchSub">Looking for someone to talk to</p>
     <div class="row" style="justify-content:center"><button class="btn" id="cancelBtn" type="button">Cancel</button></div>
   </section>
@@ -119,18 +121,19 @@
   <section class="panel" id="chat" hidden>
     <div class="chathead">
       <div>
-        <h2>Stranger</h2>
-        <p class="note" id="chatHint">Say hi. Ask anything.</p>
+        <h2>Line open</h2>
+        <p class="turn" id="turn">…</p>
       </div>
       <div class="timer" id="timer" aria-live="off">2:00</div>
     </div>
     <div class="log" id="log" aria-live="polite"></div>
-    <div class="typing" id="typing" hidden><span></span><span></span><span></span> typing</div>
+    <div class="typing" id="typing" hidden>stranger is typing</div>
     <form id="sendForm">
-      <label for="msgInput" class="note" hidden>Message</label>
-      <textarea id="msgInput" rows="1" maxlength="280" placeholder="Type a message…" autocomplete="off"></textarea>
+      <label for="msgInput" class="prompt">&gt;</label>
+      <textarea id="msgInput" rows="1" maxlength="100" placeholder="type here…" autocomplete="off"></textarea>
       <button class="btn primary" type="submit" id="sendBtn">Send</button>
     </form>
+    <p class="count" id="count">0/100</p>
     <div class="row">
       <button class="btn" id="earlyBtn" type="button" disabled>Guess now (0:45)</button>
     </div>
@@ -163,7 +166,8 @@
   /* ---------------- settings ---------------- */
   const ROUND = 120;          // seconds of chat
   const EARLY = 45;           // earliest guess
-  const MAX_LEN = 280;
+  const MAX_LEN = 100;        // Human or Not (AI21, 2023) rules: 100 characters,
+  const TURN = 20;            // 20 seconds per message, strict turn-taking
   const me = 'p' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
   const $ = id => document.getElementById(id);
@@ -224,7 +228,7 @@
           snap => tryPair(s, snap.docs), () => {}));
         s.unsubs.push(db.doc('queue/' + me).onSnapshot(d => {
           const v = d.exists ? d.data() : null;
-          if (v && v.status === 'matched' && v.match && !s.paired) s.paired = { mid: v.match, opp: v.opp };
+          if (v && v.status === 'matched' && v.match && !s.paired) s.paired = { mid: v.match, opp: v.opp, first: v.first };
         }, () => {}));
       } catch (e) { /* matchmaking unavailable: fall back to Claude */ }
     }
@@ -236,6 +240,8 @@
     const el = (Date.now() - s.start) / 1000;
     const dots = '.'.repeat(1 + (Math.floor(el * 2) % 3));
     $('searchText').textContent = 'Searching' + dots;
+    const lines = ['ATDT 555-0150', 'DIALING' + dots, 'CARRIER DETECT' + dots, 'HANDSHAKE 1200 BAUD' + dots, 'WAITING FOR PARTY' + dots];
+    $('modem').textContent = lines.slice(0, 1 + Math.min(lines.length - 1, Math.floor(el / 1.5))).join('\n');
     if (el > 5) $('searchSub').textContent = 'Still looking… ' + Math.floor(el) + 's';
     if (Date.now() - s.start >= s.revealAt) {
       if (s.paired) return foundMatch(s, 'human');
@@ -263,10 +269,11 @@
       const [a, b] = await Promise.all([db.doc('queue/' + me).get(), db.doc('queue/' + other.id).get()]);
       if (!a.exists || !b.exists || a.data().status !== 'waiting' || b.data().status !== 'waiting') return;
       const mid = 'm' + now.toString(36) + Math.random().toString(36).slice(2, 6);
-      await db.doc('matches/' + mid).set({ a: me, b: other.id, created: now });
-      await db.doc('queue/' + other.id).update({ status: 'matched', match: mid, opp: me });
-      await db.doc('queue/' + me).update({ status: 'matched', match: mid, opp: other.id });
-      s.paired = { mid, opp: other.id };
+      const first = Math.random() < 0.5 ? me : other.id;
+      await db.doc('matches/' + mid).set({ a: me, b: other.id, first, created: now });
+      await db.doc('queue/' + other.id).update({ status: 'matched', match: mid, opp: me, first });
+      await db.doc('queue/' + me).update({ status: 'matched', match: mid, opp: other.id, first });
+      s.paired = { mid, opp: other.id, first };
     } catch (e) { /* try again on the next change */ } finally { s.busy = false; }
   }
 
@@ -294,6 +301,7 @@
   function startRound(kind, paired) {
     round = {
       kind, mid: paired && paired.mid, opp: paired && paired.opp,
+      iStart: kind === 'human' ? paired.first === me : Math.random() < 0.5, turnStart: Date.now(), lastTurnKey: null,
       start: Date.now(), mine: [], theirs: [], theirGuess: null, myGuess: null,
       unsub: null, writing: Promise.resolve(), typingSent: false, oppSeen: false, done: false
     };
@@ -303,7 +311,7 @@
     $('msgInput').disabled = false;
     $('sendBtn').disabled = false;
     $('earlyBtn').disabled = true;
-    $('chatHint').textContent = 'Say hi. Ask anything.';
+    $('count').textContent = '0/' + MAX_LEN;
     show('chat');
     $('msgInput').focus();
     round.tick = setInterval(roundTick, 250);
@@ -321,12 +329,36 @@
     const early = Math.max(0, EARLY - el);
     $('earlyBtn').disabled = early > 0;
     $('earlyBtn').textContent = early > 0 ? `Guess now (${Math.ceil(early)}s)` : 'Guess now';
-    if (left <= 0) endChat();
+    if (left <= 0) return endChat();
     if (r.kind === 'human' && !r.oppSeen && el > 20) {
       r.oppSeen = true;
       addSys('The other player hasn\'t connected. You can still guess, or play again.');
     }
-    if (r.kind === 'ai') aiIdleCheck(el);
+    turnTick();
+  }
+
+  /* ---------- turns: one message each, 20 s to send ----------
+     Whose turn it is comes only from how many messages (including passed
+     turns) both sides have sent, so both browsers always agree. */
+  const total = () => round.mine.length + round.theirs.length;
+  const myTurn = () => (total() % 2 === 0) === round.iStart;
+  function turnTick() {
+    const r = round;
+    const key = total();
+    if (key !== r.lastTurnKey) {                 // a new turn began
+      r.lastTurnKey = key; r.turnStart = Date.now();
+      const mine = myTurn();
+      $('msgInput').disabled = !mine; $('sendBtn').disabled = !mine;
+      if (mine) $('msgInput').focus();
+      if (!mine && r.kind === 'ai') aiTakeTurn();
+    }
+    const t = Math.max(0, TURN - (Date.now() - r.turnStart) / 1000);
+    if (myTurn()) {
+      $('turn').textContent = `YOUR TURN · ${Math.ceil(t)}s`; $('turn').className = 'turn mine';
+      if (t <= 0) sendMine(null);                // time's up: the turn passes
+    } else {
+      $('turn').textContent = 'THEIR TURN'; $('turn').className = 'turn theirs';
+    }
   }
 
   function render() {
@@ -337,8 +369,8 @@
     log.innerHTML = '';
     for (const m of all) {
       const d = document.createElement('div');
-      d.className = 'msg ' + m.who;
-      d.textContent = m.text;
+      d.className = 'msg ' + m.who + (m.skip ? ' skip' : '');
+      d.textContent = m.skip ? '(no reply — turn passed)' : m.text;
       log.appendChild(d);
     }
     sys.forEach(s => log.appendChild(s));
@@ -355,17 +387,22 @@
   $('sendForm').addEventListener('submit', e => {
     e.preventDefault();
     const text = $('msgInput').value.trim().slice(0, MAX_LEN);
-    if (!text || !round || round.done) return;
-    $('msgInput').value = '';
-    round.mine.push({ t: Date.now(), text });
-    render();
-    if (round.kind === 'human') { pushMine({ typing: false }); round.typingSent = false; }
-    else aiOnUserMessage();
+    if (!text || !round || round.done || !myTurn()) return;
+    sendMine(text);
   });
+  function sendMine(text) {
+    const r = round;
+    $('msgInput').value = ''; $('count').textContent = '0/' + MAX_LEN;
+    r.mine.push(text ? { t: Date.now(), text } : { t: Date.now(), text: '', skip: true });
+    render();
+    if (r.kind === 'human') { pushMine({ typing: false }); r.typingSent = false; }
+    turnTick();
+  }
   $('msgInput').addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('sendForm').requestSubmit(); }
   });
   $('msgInput').addEventListener('input', () => {
+    $('count').textContent = $('msgInput').value.length + '/' + MAX_LEN;
     if (!round || round.kind !== 'human') return;
     const typing = $('msgInput').value.trim().length > 0;
     if (typing !== round.typingSent) { round.typingSent = typing; pushMine({ typing }); }
@@ -430,7 +467,7 @@
       if (!d || !d.exists) return;
       const v = d.data();
       r.oppSeen = true;
-      const msgs = Array.isArray(v.msgs) ? v.msgs.filter(m => m && typeof m.text === 'string').map(m => ({ t: +m.t || 0, text: String(m.text).slice(0, MAX_LEN) })) : [];
+      const msgs = Array.isArray(v.msgs) ? v.msgs.filter(m => m && typeof m.text === 'string').map(m => ({ t: +m.t || 0, text: String(m.text).slice(0, MAX_LEN), skip: !!m.skip })) : [];
       if (msgs.length !== r.theirs.length) { r.theirs = msgs; render(); }
       $('typing').hidden = !(v.typing && !r.done);
       if (v.guess === 'human' || v.guess === 'ai') { r.theirGuess = v.guess; showTheirGuess(); }
@@ -441,7 +478,7 @@
   function pushMine(patch) {
     const r = round;
     if (!r || r.kind !== 'human' || !db) return;
-    r.state = Object.assign(r.state || { msgs: [], typing: false, guess: null }, patch, { msgs: r.mine.slice(-40) });
+    r.state = Object.assign(r.state || { msgs: [], typing: false, guess: null }, patch, { msgs: r.mine.slice() });
     const body = JSON.parse(JSON.stringify(r.state));
     r.writing = r.writing.then(() => db.doc('matches/' + r.mid + '/lines/' + me).set(body)).catch(() => {});
   }
@@ -460,33 +497,23 @@
 
   function aiStart() {
     const r = round;
-    r.ai = { persona: pick(PERSONAS), timer: null, abort: null, nudged: false, lastActivity: Date.now(), busy: false };
-    // sometimes Claude opens, sometimes it waits for you — like people do
-    if (Math.random() < 0.55) r.ai.timer = setTimeout(() => { if (!r.mine.length && round === r && !r.done) aiSay(pick(OPENERS)); }, rand(3000, 8000));
+    r.ai = { persona: pick(PERSONAS), timer: null, abort: null, busy: false };
   }
 
-  function aiIdleCheck(el) {
-    const a = round.ai;
-    if (!a || a.busy || a.nudged) return;
-    if (Date.now() - a.lastActivity > 26000 && el > 20) {
-      a.nudged = true;
-      aiReply(true);
-    }
-  }
-
-  function aiOnUserMessage() {
-    const r = round;
-    const a = r.ai;
-    a.lastActivity = Date.now();
+  // Claude's turn: read your message, think, type — and send inside the 20 s,
+  // or (rarely, like a distracted person) let the turn pass.
+  function aiTakeTurn() {
+    const r = round, a = r.ai;
     clearTimeout(a.timer);
-    if (a.abort) a.abort.abort();          // they sent more: start the reply over
-    $('typing').hidden = true;
-    a.timer = setTimeout(() => aiReply(false), rand(900, 2600));   // time to "read"
+    const opening = total() === 0;
+    const last = r.mine[r.mine.length - 1];
+    if (opening) a.timer = setTimeout(() => aiSay(pick(OPENERS)), rand(2500, 6500));
+    else a.timer = setTimeout(() => aiReply(!!(last && last.skip)), rand(900, 2400) + (last && !last.skip ? last.text.length * 25 : 0));
   }
 
   function transcript() {
     const r = round;
-    return [...r.mine.map(m => ({ ...m, w: 'them' })), ...r.theirs.map(m => ({ ...m, w: 'you' }))]
+    return [...r.mine.map(m => ({ ...m, w: 'them' })), ...r.theirs.map(m => ({ ...m, w: 'you' }))].filter(m => !m.skip)
       .sort((a, b) => a.t - b.t).map(m => `${m.w}: ${m.text}`).join('\n');
   }
 
@@ -503,7 +530,7 @@
 Play this person: ${a.persona.text}.
 
 How to write:
-- Text like a real person messaging a stranger: mostly lowercase, short (usually 2 to 12 words), sometimes just "lol" or "wait what".
+- You take turns: one message each. Text like a real person messaging a stranger: mostly lowercase, short (usually 2 to 12 words, never over 100 characters), sometimes just "lol" or "wait what".
 - Casual punctuation, occasional small typo, no emoji walls, no lists, no markdown, never sound like an assistant.
 - Don't know everything. Shrug off trivia or math you wouldn't know off the top of your head ("idk", "no clue lol").
 - Have opinions and small details from your life. Ask them things back sometimes; you're also curious whether they're a bot.
@@ -511,7 +538,7 @@ How to write:
 - Don't repeat yourself. Match their energy; if they're rude, be short.
 
 ${el}s of 120s have passed.
-${nudge ? 'They have gone quiet for a while. Send a short nudge or a new question, like a person would.\n' : ''}
+${nudge ? 'They let their turn pass without typing anything. Send a short nudge or a new question, like a person would.\n' : ''}
 Chat so far ("you" is you, "them" is the other player):
 ${transcript() || '(nothing yet)'}
 
@@ -523,28 +550,38 @@ Reply with ONLY your next message text.`;
       const res = await sample(prompt, { signal: a.abort.signal, cache: false, modelTier: 'quick' });
       clearTimeout(typingShow);
       if (round !== r || r.done) return;
-      let text = (res.text || '').trim().replace(/^you:\s*/i, '').replace(/^["']|["']$/g, '').split('\n')[0].slice(0, 200);
-      if (!text) { $('typing').hidden = true; a.busy = false; return; }
-      // typing speed ~4–7 characters per second, minus the time Claude already took
+      let text = (res.text || '').trim().replace(/^you:\s*/i, '').replace(/^["']|["']$/g, '').split('\n')[0].slice(0, MAX_LEN);
+      if (!text) { $('typing').hidden = true; return aiPass(); }
+      // typing speed ~4–7 characters per second, minus the time Claude already took,
+      // and always inside the 20-second turn
       $('typing').hidden = false;
       const typeMs = (text.length / rand(4, 7)) * 1000 + rand(300, 900);
-      await sleep(Math.max(250, typeMs - (Date.now() - t0) * 0.5));
+      const turnLeft = TURN * 1000 - (Date.now() - r.turnStart) - rand(800, 2000);
+      await sleep(Math.max(250, Math.min(turnLeft, typeMs - (Date.now() - t0) * 0.5)));
       if (round !== r || r.done || a.abort.signal.aborted) return;
       aiSay(text);
     } catch (e) {
       $('typing').hidden = true;
       if (e && e.code === 'cancelled') return;
       if (e && (e.code === 'not_granted' || e.code === 'sampling_disabled')) addSys('Claude isn\'t available here, so the other side can\'t reply.');
+      aiPass();
     } finally { if (round === r) a.busy = false; }
   }
 
   function aiSay(text) {
     const r = round;
-    if (!r || r.done) return;
+    if (!r || r.done || myTurn()) return;
     $('typing').hidden = true;
-    r.theirs.push({ t: Date.now(), text });
-    r.ai.lastActivity = Date.now();
+    r.theirs.push({ t: Date.now(), text: text.slice(0, MAX_LEN) });
     render();
+    turnTick();
+  }
+  function aiPass() {
+    const r = round;
+    if (!r || r.done || myTurn()) return;
+    r.theirs.push({ t: Date.now(), text: '', skip: true });
+    render();
+    turnTick();
   }
 
   window.addEventListener('pagehide', () => { if (db && search) db.doc('queue/' + me).delete().catch(() => {}); });

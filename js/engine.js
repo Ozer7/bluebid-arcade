@@ -90,6 +90,12 @@
     scatter(sd) { return U.gauss() * sd * (1 + this.pressure * 0.8); }
     // is the player momentarily not paying attention?
     lapsed(dt) { return Math.random() < this.lapseRate * dt; }
+    // Time to move the mouse to a target and click it (Fitts' law, Shannon form).
+    // A mouse manages about 3.8 bits/s (MacKenzie, ISO 9241-9), plus ~60 ms to click.
+    point(dist, width = 40) {
+      const id = Math.log2(1 + Math.max(0, dist) / Math.max(4, width));
+      return (0.06 + id / 3.8) * Math.exp(U.gauss() * 0.15) * (1 + this.pressure * 0.2);
+    }
   }
   Arcade.Human = Human;
 
@@ -105,8 +111,94 @@
   }
   Arcade.Lag = Lag;
 
+  /* ---------- sound: tiny chip-style synth (WebAudio), no audio files ----------
+     Early arcade machines made their sounds with simple oscillators and noise;
+     this does the same. Every sound is a short burst built from a square /
+     triangle / sine wave or filtered noise. Silent until the player interacts
+     (browsers require that), and can be muted from the cabinet. */
+  const Sound = (Arcade.sound = {
+    ctx: null,
+    muted: (() => { try { return localStorage.getItem('arcade:muted') === '1'; } catch { return false; } })(),
+    unlock() {
+      if (typeof window === 'undefined' || !(window.AudioContext || window.webkitAudioContext)) return null;
+      try {
+        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+      } catch { this.ctx = null; }
+      return this.ctx;
+    },
+    setMuted(m) { this.muted = m; try { localStorage.setItem('arcade:muted', m ? '1' : '0'); } catch { /* ignore */ } },
+    tone({ f = 440, to = null, type = 'square', dur = 0.08, vol = 0.12, at = 0 }) {
+      const c = this.ctx; if (!c || this.muted) return;
+      const t = c.currentTime + at, o = c.createOscillator(), g = c.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, t);
+      if (to) o.frequency.exponentialRampToValueAtTime(Math.max(20, to), t + dur);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+      o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur + 0.02);
+    },
+    noise({ dur = 0.3, vol = 0.2, freq = 1200, to = 200, at = 0 }) {
+      const c = this.ctx; if (!c || this.muted) return;
+      const t = c.currentTime + at, n = Math.floor(c.sampleRate * dur);
+      const buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      const src = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain();
+      src.buffer = buf; fl.type = 'lowpass';
+      fl.frequency.setValueAtTime(freq, t); fl.frequency.exponentialRampToValueAtTime(Math.max(40, to), t + dur);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+      src.connect(fl).connect(g).connect(c.destination); src.start(t); src.stop(t + dur + 0.02);
+    }
+  });
+  const SFX = {
+    select: () => Sound.tone({ f: 880, dur: 0.04, vol: 0.06 }),
+    coin: () => { Sound.tone({ f: 988, dur: 0.07, vol: 0.1 }); Sound.tone({ f: 1319, dur: 0.25, vol: 0.1, at: 0.07 }); },
+    start: () => [523, 659, 784, 1047].forEach((f, i) => Sound.tone({ f, dur: 0.09, vol: 0.09, at: i * 0.08 })),
+    blip: (o = {}) => Sound.tone({ f: o.f || 660, dur: 0.05, vol: 0.08 }),
+    paddle: () => Sound.tone({ f: 470, dur: 0.05, vol: 0.12 }),
+    wall: () => Sound.tone({ f: 236, dur: 0.05, vol: 0.1 }),
+    brick: (o = {}) => Sound.tone({ f: o.f || 940, dur: 0.06, vol: 0.1 }),
+    eat: () => { Sound.tone({ f: 660, to: 990, dur: 0.06, vol: 0.09 }); },
+    step: () => Sound.tone({ f: 120, dur: 0.02, vol: 0.02, type: 'square' }),
+    flap: () => Sound.tone({ f: 260, to: 520, dur: 0.07, vol: 0.07, type: 'triangle' }),
+    point: () => { Sound.tone({ f: 1046, dur: 0.06, vol: 0.07 }); Sound.tone({ f: 1568, dur: 0.14, vol: 0.07, at: 0.06 }); },
+    hit: () => { Sound.noise({ dur: 0.18, vol: 0.25, freq: 2400, to: 300 }); Sound.tone({ f: 160, to: 60, dur: 0.2, vol: 0.12 }); },
+    fall: () => Sound.tone({ f: 700, to: 90, dur: 0.6, vol: 0.07, type: 'triangle' }),
+    crash: () => { Sound.noise({ dur: 0.45, vol: 0.3, freq: 1600, to: 80 }); Sound.tone({ f: 110, to: 40, dur: 0.4, vol: 0.14 }); },
+    fire: () => Sound.tone({ f: 1400, to: 250, dur: 0.1, vol: 0.06, type: 'square' }),
+    thrust: () => Sound.noise({ dur: 0.08, vol: 0.05, freq: 500, to: 300 }),
+    boomBig: () => Sound.noise({ dur: 0.7, vol: 0.3, freq: 900, to: 50 }),
+    boomMid: () => Sound.noise({ dur: 0.45, vol: 0.25, freq: 1400, to: 80 }),
+    boomSmall: () => Sound.noise({ dur: 0.25, vol: 0.2, freq: 2500, to: 150 }),
+    thump: (o = {}) => Sound.tone({ f: o.high ? 64 : 55, dur: 0.12, vol: 0.35, type: 'sine' }),
+    launch: () => Sound.noise({ dur: 0.35, vol: 0.12, freq: 3000, to: 600 }),
+    abm: () => Sound.tone({ f: 900, to: 300, dur: 0.18, vol: 0.06, type: 'sawtooth' }),
+    siren: () => [0, 0.25, 0.5].forEach(a => Sound.tone({ f: 600, to: 900, dur: 0.22, vol: 0.06, type: 'sawtooth', at: a })),
+    tick: () => Sound.tone({ f: 1200, dur: 0.03, vol: 0.05 }),
+    move: () => Sound.tone({ f: 330, dur: 0.02, vol: 0.04 }),
+    rotate: () => Sound.tone({ f: 520, dur: 0.03, vol: 0.05 }),
+    lock: () => Sound.tone({ f: 140, dur: 0.05, vol: 0.1 }),
+    line: (o = {}) => (o.n === 4 ? [523, 659, 784, 1047, 1319] : [523, 784, 1047]).forEach((f, i) => Sound.tone({ f, dur: 0.08, vol: 0.08, at: i * 0.06 })),
+    deal: () => Sound.tone({ f: 740, dur: 0.04, vol: 0.06, type: 'triangle' }),
+    win: () => [523, 659, 784, 1047, 784, 1047].forEach((f, i) => Sound.tone({ f, dur: 0.12, vol: 0.09, at: i * 0.11 })),
+    lose: () => [392, 330, 262, 196].forEach((f, i) => Sound.tone({ f, dur: 0.18, vol: 0.09, at: i * 0.16, type: 'triangle' }))
+  };
+  Arcade.sfx = (name, o) => { if (SFX[name] && Sound.ctx && !Sound.muted) try { SFX[name](o); } catch { /* ignore */ } };
+
+  /* ---------- high-score tables (top 5 per game, 3-letter initials, kept in this browser) ---------- */
+  Arcade.scores = {
+    key: id => 'arcade:hs:' + id,
+    get(id) { try { return JSON.parse(localStorage.getItem(this.key(id))) || []; } catch { return []; } },
+    qualifies(id, score) { if (!(score > 0)) return false; const t = this.get(id); return t.length < 5 || score > t[t.length - 1].score; },
+    add(id, name, score) {
+      const t = this.get(id);
+      t.push({ name: (name || 'AAA').toUpperCase().slice(0, 3), score, at: Date.now() });
+      t.sort((a, b) => b.score - a.score);
+      try { localStorage.setItem(this.key(id), JSON.stringify(t.slice(0, 5))); } catch { /* ignore */ }
+      return t.slice(0, 5);
+    }
+  };
+
   /* ---------- drawing helpers ---------- */
-  const FONT = '"Silkscreen", ui-monospace, Menlo, Consolas, monospace';
+  const FONT = '"Press Start 2P", "Silkscreen", ui-monospace, Menlo, Consolas, monospace';
   const BODY = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
   Arcade.draw = {
     FONT, BODY,
@@ -185,7 +277,9 @@
           self.over = { winnerSide, detail };
           setTimeout(() => self.hooks.onEnd && self.hooks.onEnd(self.over), delay);
         },
-        toast(msg, color) { self.toasts.push({ msg, color: color || Arcade.C.text, t: 1.6 }); }
+        toast(msg, color) { self.toasts.push({ msg, color: color || '#ffd23f', t: 1.6 }); },
+        // sound effects are silent in attract-mode demos
+        sfx(name, o) { if (!self.quiet) Arcade.sfx(name, o); }
       };
 
       this.game = def.create(this.api);
@@ -278,17 +372,18 @@
       const ctx = this.ctx;
       ctx.save();
       this.game.draw(ctx);
-      // toasts
-      let y = H - 34;
+      // toasts: short arcade-style banners
+      let y = H - 44;
       for (const s of this.toasts) {
         ctx.globalAlpha = Math.min(1, s.t * 2);
-        ctx.font = `700 15px ${BODY}`;
-        const w = ctx.measureText(s.msg).width + 28;
-        ctx.fillStyle = 'rgba(14,21,40,.92)';
-        Arcade.draw.roundRect(ctx, W / 2 - w / 2, y - 16, w, 32, 10);
-        ctx.fill();
-        Arcade.draw.text(ctx, s.msg, W / 2, y, { size: 15, color: s.color, align: 'center' });
-        y -= 40;
+        ctx.font = `12px ${FONT}`;
+        const w = ctx.measureText(s.msg.toUpperCase()).width + 28;
+        ctx.fillStyle = 'rgba(0,0,0,.82)';
+        ctx.fillRect(W / 2 - w / 2, y - 15, w, 30);
+        ctx.strokeStyle = s.color; ctx.lineWidth = 2;
+        ctx.strokeRect(W / 2 - w / 2 + 1, y - 14, w - 2, 28);
+        Arcade.draw.text(ctx, s.msg.toUpperCase(), W / 2, y + 1, { size: 12, color: s.color, align: 'center', pixel: true });
+        y -= 38;
       }
       ctx.restore();
     }

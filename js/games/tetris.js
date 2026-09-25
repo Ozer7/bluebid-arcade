@@ -11,14 +11,17 @@
    ========================================================================== */
 (function () {
   'use strict';
-  const { C, util: U, draw: D } = Arcade;
+  const { util: U, draw: D } = Arcade;
 
   const W = 800, H = 600;
   const COLS = 10, ROWS = 20, CELL = 26;
   const BX = 270, BY = 60;                      // board position on screen
   const TARGET = 30;
   const NAMES = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
-  const COLORS = { I: '#3cc8e0', O: '#e8d44d', T: '#a77bff', S: '#2fbf71', Z: '#f25c69', J: '#4f7cff', L: '#f0a83c' };
+  // Game Boy DMG palette (darkest → lightest). The 1989 Game Boy had no colour,
+  // so every piece gets its own block pattern instead.
+  const GB = ['#0f380f', '#306230', '#8bac0f', '#9bbc0f'];
+  const PAT = { I: 'bar', O: 'dot', T: 'solid', S: 'hatch', Z: 'ring', J: 'frame', L: 'check' };
   const SHAPES = {
     I: [[0, 1], [1, 1], [2, 1], [3, 1]],
     O: [[1, 0], [2, 0], [1, 1], [2, 1]],
@@ -38,6 +41,22 @@
       ROT[n].push(cells);
       cells = n === 'O' ? cells : cells.map(([x, y]) => [size - 1 - y, x]);
     }
+  }
+
+  // one block, drawn in the piece's Game Boy pattern
+  function gbCell(ctx, x, y, c, name) {
+    const p = PAT[name], q = Math.max(2, Math.round(c / 6));
+    ctx.fillStyle = GB[0]; ctx.fillRect(x, y, c, c);
+    ctx.fillStyle = GB[3]; ctx.fillRect(x + q / 2, y + q / 2, c - q, c - q);
+    const i = x + q * 1.5, j = y + q * 1.5, n = c - q * 3;
+    if (n <= 0) return;
+    if (p === 'solid') { ctx.fillStyle = GB[1]; ctx.fillRect(i, j, n, n); }
+    else if (p === 'bar') { ctx.fillStyle = GB[2]; ctx.fillRect(i, j, n, n); ctx.fillStyle = GB[0]; ctx.fillRect(i, j + n / 2 - q / 2, n, q); }
+    else if (p === 'dot') { ctx.fillStyle = GB[2]; ctx.fillRect(i, j, n, n); ctx.fillStyle = GB[0]; ctx.fillRect(x + c / 2 - q, y + c / 2 - q, q * 2, q * 2); }
+    else if (p === 'hatch') { ctx.fillStyle = GB[1]; for (let k = 0; k < n; k += q * 2) ctx.fillRect(i, j + k, n, q); }
+    else if (p === 'ring') { ctx.fillStyle = GB[0]; ctx.fillRect(i, j, n, n); ctx.fillStyle = GB[2]; ctx.fillRect(i + q, j + q, n - 2 * q, n - 2 * q); }
+    else if (p === 'frame') { ctx.fillStyle = GB[1]; ctx.fillRect(i, j, n, n); ctx.fillStyle = GB[3]; ctx.fillRect(i + q, j + q, n - 2 * q, n - 2 * q); }
+    else if (p === 'check') { ctx.fillStyle = GB[1]; for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) if ((a + b) % 2 === 0) ctx.fillRect(i + a * n / 2, j + b * n / 2, n / 2, n / 2); }
   }
 
   /* ---------- board helpers (pure, used by the game and both AIs) ---------- */
@@ -129,9 +148,12 @@
   Arcade.register({
     id: 'tetris',
     title: 'Stack & Deal',
+    year: '1989 · Game Boy (after Tetris, 1984, Alexey Pajitnov)',
+    history: 'Pajitnov wrote Tetris on a Soviet Elektronika 60 in 1984; the 1989 Game Boy version, four shades of green and a brick-walled well, sold over 35 million copies. Here the twist is that a second player deals every piece.',
+    scoreSide: 'stacker', scoreName: 'points',
     tagline: 'Tetris where the other player chooses every piece you get.',
     flip: 'you deal the pieces, the computer stacks them.',
-    blurb: 'My own game. The stacker plays normal Tetris and needs 30 lines to win. The dealer picks every piece and wins if the stack reaches the top. The dealer can\'t give the same piece three times in a row, and has to give an I-piece at least once every 12 pieces. Pieces fall faster every 4 lines.',
+    blurb: 'My own game. The stacker plays normal Tetris and needs 30 lines to win. The dealer picks every piece and wins if the stack reaches the top. The dealer can\'t give the same piece three times in a row, and has to give an I-piece at least once every 12 pieces. Pieces fall faster every 4 lines. Scoring is the Game Boy\'s: 40, 100, 300 or 1200 points × level for 1–4 lines.',
     menuText: 'The stacker wins at <b>30 lines</b>. The dealer wins on a <b>top-out</b>. The dealer can\'t repeat a piece three times running, and an I-piece must come at least every 12 pieces.',
     sides: [
       { key: 'stacker', label: 'Stacker', human: '← → to move, ↑ or X to rotate, Z to rotate back, ↓ soft drop, Space hard drop.', cpu: 'Scores every legal placement (height, holes, bumpiness, lines), plans ahead with the next piece once it gets good, then actually steers the piece there one key-press at a time.' },
@@ -139,16 +161,12 @@
     ],
     defaults: { stacker: 'cpu', dealer: 'human' },
 
-    thumb(ctx, w) {
+    thumb(ctx, w, h) {
       const s = w / W, c = CELL * s * 1.35, ox = 120 * s, oy = 40 * s;
+      ctx.fillStyle = GB[3]; ctx.fillRect(0, 0, w, h);
       const rows = ['..........', '..........', '....TT....', '.....T....', 'I.......OO', 'I..SS...OO', 'I.SS.JJLLL', 'IZZ.JJJ.LL', 'ZZ.JJTTTLL'];
-      rows.forEach((r, y) => [...r].forEach((ch, x) => {
-        if (ch === '.') return;
-        ctx.fillStyle = COLORS[ch];
-        ctx.fillRect(ox + x * c + 1, oy + y * c + 1, c - 2, c - 2);
-      }));
-      ctx.strokeStyle = C.line; ctx.lineWidth = 2; ctx.strokeRect(ox, oy, c * 10, c * 9);
-      NAMES.forEach((n, i) => { ctx.fillStyle = COLORS[n]; ctx.fillRect(w - 60, 40 * s + i * 22, 30, 14); });
+      rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== '.') gbCell(ctx, ox + x * c, oy + y * c, c, ch); }));
+      ctx.strokeStyle = GB[0]; ctx.lineWidth = 2; ctx.strokeRect(ox, oy, c * 10, c * 9);
     },
 
     create(api) {
@@ -178,13 +196,14 @@
         if (!allowed(p)) return false;
         next = p;
         history.push(p);
+        if (history.length > 1) api.sfx('deal');
         return true;
       }
 
       function spawn() {
         if (!next) {
           deal(U.pick(allowedList()));
-          if (api.isHuman('dealer') && history.length > 1) api.toast('Too slow — random piece', C.muted);
+          if (api.isHuman('dealer') && history.length > 1) api.toast('Too slow — random piece');
         }
         const name = next;
         next = null;
@@ -194,13 +213,14 @@
           if (!fits(board, cur.name, 0, cur.x, cur.y)) return topOut();
         }
         fallT = 0; lockT = 0; soft = false;
-        dealerThink = dealer.react(true) + U.rand(0.2, 0.9);
+        dealerThink = dealer.react(true) * 0.8 + U.rand(0.15, 0.7) + dealer.point(U.rand(60, 260), 50);   // look at the board, decide, click the palette
         if (!api.isHuman('stacker')) planMove();
       }
 
       function topOut() {
         over = true;
         cur = null;
+        api.sfx('crash');
         api.end('dealer', `The stack topped out at ${lines} line${lines === 1 ? '' : 's'}.`);
       }
 
@@ -213,13 +233,15 @@
           const tmp = board.map(r => r.slice());
           for (const [cx, cy] of ROT[cur.name][cur.rot]) if (cur.y + cy >= 0) tmp[cur.y + cy][cur.x + cx] = cur.name;
           tmp.forEach((r, y) => { if (r.every(Boolean)) full.push(y); });
-          clearing = { rows: full, t: 0.18 };
+          clearing = { rows: full, t: 0.36 };
           lines += res.lines;
-          score += [0, 100, 300, 500, 800][res.lines] * level();
-          if (res.lines === 4) api.toast('TETRIS!', C.cyan);
+          score += [0, 40, 100, 300, 1200][res.lines] * level();     // Game Boy scoring
+          api.sfx('line', { n: res.lines });
+          if (res.lines === 4) api.toast('TETRIS!');
           if (lines >= TARGET) { board = res.board; cur = null; over = true; return api.end('stacker', `${lines} lines cleared. Score ${score}.`); }
-          if (Math.floor((lines - res.lines) / 4) !== Math.floor(lines / 4)) api.toast(`Level ${level()} — faster`, C.warn);
+          if (Math.floor((lines - res.lines) / 4) !== Math.floor(lines / 4)) api.toast(`Level ${level()} — faster`);
         }
+        else api.sfx('lock');
         board = res.board;
         cur = null;
         spawn();
@@ -227,62 +249,109 @@
 
       /* ---------- shared stacker actions ---------- */
       const tryMove = (dx, dy) => {
-        if (cur && fits(board, cur.name, cur.rot, cur.x + dx, cur.y + dy)) { cur.x += dx; cur.y += dy; if (dx) lockT = 0; return true; }
+        if (cur && fits(board, cur.name, cur.rot, cur.x + dx, cur.y + dy)) { cur.x += dx; cur.y += dy; if (dx) { lockT = 0; api.sfx('move'); } return true; }
         return false;
       };
       function rotate(dir) {
         if (!cur || cur.name === 'O') return false;
         const r = (cur.rot + dir + 4) % 4;
         for (const [kx, ky] of [[0, 0], [-1, 0], [1, 0], [-2, 0], [2, 0], [0, -1]]) {
-          if (fits(board, cur.name, r, cur.x + kx, cur.y + ky)) { cur.rot = r; cur.x += kx; cur.y += ky; lockT = 0; return true; }
+          if (fits(board, cur.name, r, cur.x + kx, cur.y + ky)) { cur.rot = r; cur.x += kx; cur.y += ky; lockT = 0; api.sfx('rotate'); return true; }
         }
         return false;
       }
       function hardDrop() {
         if (!cur) return;
         const y = dropY(board, cur.name, cur.rot, cur.x, cur.y);
-        score += (y - cur.y) * 2;
+        score += y - cur.y;
         cur.y = y;
         lock();
       }
 
       /* ---------- computer stacker (plays like a person) ---------- */
-      // A casual player places roughly one piece a second: look at the piece,
-      // decide, then tap the keys at 8–11 presses a second. They pick a good
-      // spot but not always the best one, sometimes rotate the long way round,
-      // and "misdrop" a piece one column off — more often when the stack is high
-      // and the pieces are falling fast. Hard-dropping becomes a habit as they
-      // warm up.
-      const stackSkill = () => Math.min(0.88, 0.45 + lines * 0.016);
+      // Built from Tetris research (Kirsh & Maglio 1994; Lindstedt & Gray):
+      //  • players start acting 400–600 ms after a piece appears
+      //  • the average gap between key presses is ~250 ms (fastest ~75 ms)
+      //  • weaker players spin a piece more than they need to — turning it on
+      //    screen is how they "look" at it (turning it in your head takes ~1 s)
+      //  • misdrops are usually one column off, often from holding a direction
+      //    key a moment too long
+      // It picks a good spot but not always the best one, speeds up when the
+      // stack is high or pieces fall fast, and gets steadier as it warms up.
+      const stackSkill = () => Math.min(0.85, 0.35 + lines * 0.015);
       const sp = new Arcade.Human({ reaction: 0.3 });
-      let plan = null, actT = 0, soft = false;
+      let plan = null, actT = 0, soft = false, hold = null;
       const stackHeight = () => { for (let y = 0; y < ROWS; y++) if (board[y].some(Boolean)) return ROWS - y; return 0; };
+      // time between two key presses: ~250 ms on average, quicker under pressure, never below 75 ms
+      function keyGap() {
+        const mean = U.lerp(0.25, 0.15, sp.pressure) * U.lerp(1, 0.85, stackSkill());
+        return Math.max(0.075, mean * Math.exp(U.gauss() * 0.3 - 0.045));
+      }
       function planMove() {
         const s = stackSkill();
         sp.pressure = U.clamp((stackHeight() - 8) / 10 + (0.35 - gravity()) * 1.2, 0, 1);
         const noise = U.lerp(0.4, 0.08, s) * (1 + sp.pressure);
-        plan = bestPlacement(board, cur.name, next, noise, U.chance(s * 0.4));
+        plan = bestPlacement(board, cur.name, next, noise, U.chance(s * 0.3));
+        hold = null;
         if (!plan) return;
-        // misdrop: one column off
-        if (U.chance(0.03 + sp.pressure * 0.09)) {
+        // a wrong decision by one column (not a slip of the finger — that's the hold below)
+        if (U.chance(0.02 + sp.pressure * 0.05)) {
           const dx = U.pick([-1, 1]);
           if (fits(board, cur.name, plan.rot, plan.x + dx, SPAWN_Y) || fits(board, cur.name, plan.rot, plan.x + dx, SPAWN_Y - 1)) plan.x += dx;
         }
-        // usually rotates the short way; sometimes the long way (three turns instead of one)
-        plan.rotDir = plan.rot === 3 && U.chance(0.6 + s * 0.35) ? -1 : 1;
-        // look at the piece and decide; rushed when things are tense
-        actT = U.clamp(sp.react(true) + U.rand(0.1, 0.6) * (1 - s * 0.6) * (1 - sp.pressure * 0.7), 0.15, 1.4);
-        plan.hard = U.chance(0.45 + s * 0.5);
+        // the key sequence: a few "looking" spins, the real rotation, then the moves and the drop
+        const keys = [];
+        let r = 0;
+        if (cur.name !== 'O' && U.chance(U.lerp(0.55, 0.15, s) * (1 - sp.pressure * 0.6))) {
+          const spins = U.randInt(1, 2);
+          for (let i = 0; i < spins; i++) keys.push('R');
+          r = spins % 4;
+        }
+        const cw = (plan.rot - r + 4) % 4;
+        if (cw === 3 && U.chance(0.55 + s * 0.4)) keys.push('L');       // the short way…
+        else for (let i = 0; i < cw; i++) keys.push('R');                 // …or the long way round
+        keys.push('MOVE', 'DROP');
+        plan.keys = keys;
+        plan.useHold = U.chance(0.5);
+        plan.hard = U.chance(0.4 + s * 0.5);
+        // first action 400–600 ms after the piece appears (quicker when rushed)
+        actT = U.clamp(U.rand(0.4, 0.6) * Math.exp(U.gauss() * 0.2) * (1 - sp.pressure * 0.4), 0.2, 1.1);
       }
       function cpuStack(dt) {
         if (!cur || !plan) return;
+        const s = stackSkill();
+        // holding a direction key: the game auto-repeats, and letting go is a reaction
+        if (hold) {
+          hold.t -= dt;
+          if (hold.t > 0) return;
+          const stopAt = hold.overshoot ? plan.x + hold.dir : plan.x;
+          if (cur.x === stopAt || !tryMove(hold.dir, 0) || cur.x === stopAt) {
+            if (cur.x !== plan.x && !U.chance(0.5 + s * 0.4)) plan.x = cur.x;   // didn't notice the slip
+            hold = null;
+            actT = keyGap();
+            return;
+          }
+          hold.t = 0.05;
+          return;
+        }
         actT -= dt;
         if (actT > 0) return;
-        actT = U.rand(0.085, 0.13) * (1 - sp.pressure * 0.25);   // a person's key-tapping pace
-        if (cur.rot !== plan.rot) { if (!rotate(plan.rotDir || 1)) plan.rot = cur.rot; return; }
-        if (cur.x < plan.x) { if (!tryMove(1, 0)) plan.x = cur.x; return; }
-        if (cur.x > plan.x) { if (!tryMove(-1, 0)) plan.x = cur.x; return; }
-        if (plan.hard) hardDrop(); else soft = true;
+        const k = plan.keys[0];
+        if (k === 'R' || k === 'L') { plan.keys.shift(); rotate(k === 'R' ? 1 : -1); actT = keyGap(); return; }
+        if (k === 'MOVE') {
+          if (cur.rot !== plan.rot) { rotate(1); actT = keyGap(); return; }          // a rotation got blocked: fix it
+          if (cur.x === plan.x) { plan.keys.shift(); actT = U.rand(0.12, 0.35) * (1 - sp.pressure * 0.5); return; }   // check, then drop
+          const dir = Math.sign(plan.x - cur.x);
+          if (plan.useHold && Math.abs(plan.x - cur.x) >= 3) {
+            if (!tryMove(dir, 0)) { plan.x = cur.x; return; }
+            hold = { dir, t: 0.16, overshoot: U.chance(0.25 * (1 - s) + sp.pressure * 0.15) };
+            return;
+          }
+          if (!tryMove(dir, 0)) plan.x = cur.x;
+          actT = keyGap();
+          return;
+        }
+        if (k === 'DROP') { plan.keys.shift(); if (plan.hard) hardDrop(); else soft = true; }
       }
 
       /* ---------- computer dealer (plays like a person) ---------- */
@@ -359,89 +428,98 @@
           });
         },
 
+        // Game Boy look: pale green screen, brick-wall well, boxed SCORE/LEVEL/LINES/NEXT
         draw(ctx) {
-          ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+          ctx.fillStyle = GB[3]; ctx.fillRect(0, 0, W, H);
+          // brick walls either side of the well
+          const brick = (x0, x1) => {
+            for (let y = BY - 8, row = 0; y < BY + ROWS * CELL + 8; y += 13, row++)
+              for (let x = x0 - (row % 2 ? 13 : 0); x < x1; x += 26) {
+                const a = Math.max(x, x0), b = Math.min(x + 26, x1);
+                if (b <= a) continue;
+                ctx.fillStyle = GB[1]; ctx.fillRect(a, y, b - a, 13);
+                ctx.fillStyle = GB[0]; ctx.fillRect(a, y + 11, b - a, 2); if (x >= x0) ctx.fillRect(x, y, 2, 13);
+                ctx.fillStyle = GB[2]; ctx.fillRect(a + 3, y + 2, Math.max(0, b - a - 6), 2);
+              }
+          };
+          brick(BX - 30, BX); brick(BX + COLS * CELL, BX + COLS * CELL + 30);
+          ctx.fillStyle = GB[3]; ctx.fillRect(BX, BY, COLS * CELL, ROWS * CELL);
+          ctx.fillStyle = GB[0]; ctx.fillRect(BX - 30, BY + ROWS * CELL, COLS * CELL + 60, 8);
 
-          // board frame + grid
-          ctx.fillStyle = C.panel; ctx.fillRect(BX - 4, BY - 4, COLS * CELL + 8, ROWS * CELL + 8);
-          ctx.fillStyle = '#0a1022'; ctx.fillRect(BX, BY, COLS * CELL, ROWS * CELL);
-          ctx.strokeStyle = 'rgba(38,50,79,.45)'; ctx.lineWidth = 1;
-          for (let x = 1; x < COLS; x++) { ctx.beginPath(); ctx.moveTo(BX + x * CELL, BY); ctx.lineTo(BX + x * CELL, BY + ROWS * CELL); ctx.stroke(); }
-          for (let y = 1; y < ROWS; y++) { ctx.beginPath(); ctx.moveTo(BX, BY + y * CELL); ctx.lineTo(BX + COLS * CELL, BY + y * CELL); ctx.stroke(); }
-          // danger line
-          ctx.fillStyle = 'rgba(242,92,105,.25)'; ctx.fillRect(BX, BY + 2 * CELL - 1, COLS * CELL, 2);
-
-          for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (board[y][x]) cell(ctx, BX + x * CELL, BY + y * CELL, COLORS[board[y][x]]);
-          if (clearing) { ctx.fillStyle = 'rgba(255,255,255,.7)'; for (const r of clearing.rows) ctx.fillRect(BX, BY + r * CELL, COLS * CELL, CELL); }
+          // blink cleared rows the way the Game Boy does before they collapse
+          const blinkOn = clearing && Math.floor(clearing.t / 0.06) % 2 === 0;
+          for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (board[y][x]) gbCell(ctx, BX + x * CELL, BY + y * CELL, CELL, board[y][x]);
+          if (clearing) for (const r of clearing.rows) { ctx.fillStyle = blinkOn ? GB[0] : GB[3]; ctx.fillRect(BX, BY + r * CELL, COLS * CELL, CELL); }
 
           if (cur) {
-            // ghost piece
+            // faint landing shadow (the Game Boy had none; kept light so it doesn't distract)
             const gy = dropY(board, cur.name, cur.rot, cur.x, cur.y);
-            ctx.globalAlpha = 0.22;
-            for (const [cx, cy] of ROT[cur.name][cur.rot]) if (gy + cy >= 0) cell(ctx, BX + (cur.x + cx) * CELL, BY + (gy + cy) * CELL, COLORS[cur.name]);
-            ctx.globalAlpha = 1;
-            for (const [cx, cy] of ROT[cur.name][cur.rot]) if (cur.y + cy >= 0) cell(ctx, BX + (cur.x + cx) * CELL, BY + (cur.y + cy) * CELL, COLORS[cur.name]);
+            ctx.fillStyle = 'rgba(48,98,48,.18)';
+            for (const [cx, cy] of ROT[cur.name][cur.rot]) if (gy + cy >= 0) ctx.fillRect(BX + (cur.x + cx) * CELL + 2, BY + (gy + cy) * CELL + 2, CELL - 4, CELL - 4);
+            for (const [cx, cy] of ROT[cur.name][cur.rot]) if (cur.y + cy >= 0) gbCell(ctx, BX + (cur.x + cx) * CELL, BY + (cur.y + cy) * CELL, CELL, cur.name);
           }
 
-          // left panel: stacker stats
-          const who = k => (api.isHuman(k) ? 'YOU' : 'CPU');
-          D.text(ctx, 'STACKER', 40, 90, { size: 16, pixel: true, color: C.cyan });
-          D.text(ctx, who('stacker'), 40, 112, { size: 13, color: C.muted });
-          D.text(ctx, 'LINES', 40, 160, { size: 12, color: C.muted });
-          D.text(ctx, `${lines}/${TARGET}`, 40, 184, { size: 24, pixel: true });
-          D.bar(ctx, 40, 202, 180, 6, lines / TARGET, C.cyan);
-          D.text(ctx, 'LEVEL', 40, 240, { size: 12, color: C.muted });
-          D.text(ctx, String(level()), 40, 264, { size: 24, pixel: true });
-          D.text(ctx, 'SCORE', 40, 306, { size: 12, color: C.muted });
-          D.text(ctx, String(score), 40, 330, { size: 20, pixel: true });
+          // boxes, Game Boy style: dark outline, light fill, pixel text
+          const box = (x, y, w, h, label) => {
+            ctx.fillStyle = GB[0]; ctx.fillRect(x, y, w, h);
+            ctx.fillStyle = GB[3]; ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+            if (label) { ctx.fillStyle = GB[2]; ctx.fillRect(x + 4, y + 4, w - 8, 22); D.text(ctx, label, x + w / 2, y + 16, { size: 10, pixel: true, color: GB[0], align: 'center' }); }
+          };
+          const who = k => (api.isHuman(k) ? '1P' : 'CPU');
+          const LX = 30, LW = 200;
+          box(LX, 50, LW, 70, `STACKER ${who('stacker')}`);
+          D.text(ctx, String(score), LX + LW - 16, 96, { size: 16, pixel: true, color: GB[0], align: 'right' });
+          box(LX, 140, LW, 70, 'LEVEL');
+          D.text(ctx, String(level()), LX + LW / 2, 186, { size: 18, pixel: true, color: GB[0], align: 'center' });
+          box(LX, 230, LW, 90, 'LINES');
+          D.text(ctx, `${lines}/${TARGET}`, LX + LW / 2, 272, { size: 18, pixel: true, color: GB[0], align: 'center' });
+          ctx.fillStyle = GB[1]; ctx.fillRect(LX + 16, 296, LW - 32, 10);
+          ctx.fillStyle = GB[3]; ctx.fillRect(LX + 18, 298, LW - 36, 6);
+          ctx.fillStyle = GB[0]; ctx.fillRect(LX + 18, 298, (LW - 36) * Math.min(1, lines / TARGET), 6);
+          box(LX, 340, LW, 90, 'GOAL');
+          D.text(ctx, 'STACKER: 30 LINES', LX + LW / 2, 384, { size: 8, pixel: true, color: GB[0], align: 'center' });
+          D.text(ctx, 'DEALER: TOP OUT', LX + LW / 2, 406, { size: 8, pixel: true, color: GB[0], align: 'center' });
 
-          // right panel: next piece + dealer palette
-          const RX = 580;
-          D.text(ctx, 'DEALER', RX, 90, { size: 16, pixel: true, color: C.warn });
-          D.text(ctx, who('dealer'), RX, 112, { size: 13, color: C.muted });
-          D.text(ctx, 'NEXT', RX, 146, { size: 12, color: C.muted });
-          ctx.fillStyle = C.panel; D.roundRect(ctx, RX, 158, 120, 70, 10); ctx.fill();
-          if (next) miniPiece(ctx, next, RX + 60, 193, 18);
-          else D.text(ctx, api.isHuman('dealer') ? 'pick one ↓' : 'thinking…', RX + 60, 193, { size: 13, color: api.isHuman('dealer') ? C.warn : C.dim, align: 'center' });
+          const RX = 570, RW = 200;
+          box(RX, 50, RW, 120, `DEALER ${who('dealer')}`);
+          D.text(ctx, 'NEXT', RX + 16, 44, { size: 8, pixel: true, color: GB[1] });
+          if (next) miniPiece(ctx, next, RX + RW / 2, 104, 18);
+          else if (Math.floor(api.time * 2.5) % 2) D.text(ctx, api.isHuman('dealer') ? 'PICK ONE' : 'THINKING', RX + RW / 2, 104, { size: 10, pixel: true, color: GB[1], align: 'center' });
 
           if (api.isHuman('dealer')) {
             NAMES.forEach((n, i) => {
               const r = paletteRect(i);
               const ok = allowed(n) && !next;
               const hov = api.pointer.inside && api.pointer.x >= r.x && api.pointer.x <= r.x + r.w && api.pointer.y >= r.y && api.pointer.y <= r.y + r.h;
-              ctx.fillStyle = hov && ok ? C.grid : '#0b1124';
-              D.roundRect(ctx, r.x, r.y, r.w, r.h, 8); ctx.fill();
+              ctx.fillStyle = hov && ok ? GB[1] : GB[0]; ctx.fillRect(r.x, r.y, r.w, r.h);
+              ctx.fillStyle = hov && ok ? GB[2] : GB[3]; ctx.fillRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6);
               ctx.globalAlpha = ok ? 1 : 0.25;
-              miniPiece(ctx, n, r.x + r.w / 2 + 6, r.y + r.h / 2, 10);
-              D.text(ctx, String(i + 1), r.x + 10, r.y + r.h / 2, { size: 11, color: C.muted });
+              miniPiece(ctx, n, r.x + r.w / 2 + 8, r.y + r.h / 2, 10);
+              D.text(ctx, String(i + 1), r.x + 12, r.y + r.h / 2, { size: 8, pixel: true, color: GB[0] });
               ctx.globalAlpha = 1;
             });
-            if (sinceI() >= 8) D.text(ctx, `I-piece due in ${12 - sinceI() - 1}`, RX, 560, { size: 11, color: C.muted });
+            if (sinceI() >= 8) D.text(ctx, `I DUE IN ${12 - sinceI() - 1}`, RX + RW / 2, 570, { size: 8, pixel: true, color: GB[0], align: 'center' });
           } else {
-            D.text(ctx, 'recent deals', RX, 262, { size: 12, color: C.muted });
-            history.slice(-8).reverse().forEach((n, i) => miniPiece(ctx, n, RX + 20 + (i % 4) * 34, 290 + Math.floor(i / 4) * 34, 7));
+            box(RX, 190, RW, 130, 'DEALT');
+            history.slice(-8).reverse().forEach((n, i) => miniPiece(ctx, n, RX + 32 + (i % 4) * 45, 246 + Math.floor(i / 4) * 42, 9));
           }
         },
+        score: () => score,
+        endTitle: res => (res.winnerSide === 'stacker' ? '30 lines!' : 'Topped out'),
         _state: () => ({ lines, level: level(), over, board: board.map(r => r.map(c => c || '.').join('')) })
       };
 
       function humanDeal(n) {
-        if (next) return api.toast('Next piece already dealt', C.muted);
-        if (!allowed(n)) return api.toast(sinceI() >= 11 ? 'An I-piece is due' : 'Not three in a row', C.bad);
+        if (next) return api.toast('Next piece already dealt');
+        if (!allowed(n)) return api.toast(sinceI() >= 11 ? 'An I-piece is due' : 'Not three in a row');
         deal(n);
       }
-      function paletteRect(i) { return { x: 580 + (i % 2) * 64, y: 250 + Math.floor(i / 2) * 56, w: 58, h: 48 }; }
-      function cell(ctx, x, y, col) {
-        ctx.fillStyle = col; ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
-        ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(x + 1, y + 1, CELL - 2, 4);
-        ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(x + 1, y + CELL - 5, CELL - 2, 4);
-      }
+      function paletteRect(i) { return { x: 570 + (i % 2) * 104, y: 190 + Math.floor(i / 2) * 62, w: 96, h: 54 }; }
       function miniPiece(ctx, n, cx, cy, s) {
         const cells = ROT[n][0];
         const xs = cells.map(c => c[0]), ys = cells.map(c => c[1]);
         const w = (Math.max(...xs) - Math.min(...xs) + 1) * s, h = (Math.max(...ys) - Math.min(...ys) + 1) * s;
-        ctx.fillStyle = COLORS[n];
-        for (const [x, y] of cells) ctx.fillRect(cx - w / 2 + (x - Math.min(...xs)) * s + 1, cy - h / 2 + (y - Math.min(...ys)) * s + 1, s - 2, s - 2);
+        for (const [x, y] of cells) gbCell(ctx, cx - w / 2 + (x - Math.min(...xs)) * s, cy - h / 2 + (y - Math.min(...ys)) * s, s, n);
       }
     }
   });

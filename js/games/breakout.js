@@ -1,59 +1,72 @@
 /* ==========================================================================
-   BREAKOUT — head to head.
-   Two paddles (bottom and top) share one wall of bricks in the middle.
-   Each player serves their own ball. Break bricks for points; get a ball
-   past your opponent's paddle to take one of their lives.
-   First to lose all 5 lives loses. The ball speeds up every level, and
-   a fresh wall is built whenever the old one is cleared.
+   BREAKOUT — head to head, in the style of Atari's 1976 original.
+   The original: 8 rows of bricks (yellow 1, green 3, orange 5, red 7 points),
+   a black-and-white screen under coloured cellophane strips, and a ball that
+   speeds up after 4 hits, after 12 hits, and on first touching the orange
+   and red rows. Here two paddles share one wall: the wall is mirrored so each
+   player meets the cheap yellow bricks first and the red ones sit in the
+   middle. Get your ball past the other paddle to take one of their 5 balls.
    ========================================================================== */
 (function () {
   'use strict';
-  const { C, util: U, draw: D } = Arcade;
+  const { util: U, draw: D } = Arcade;
 
   const W = 800, H = 600;
-  const PW = 104, PH = 12;                   // paddle size
-  const BOTTOM_Y = H - 34, TOP_Y = 34;       // paddle centre lines
-  const BALL_R = 7;
+  const PW = 96, PH = 10;                    // paddle size
+  const BOTTOM_Y = H - 36, TOP_Y = 36;       // paddle centre lines
+  const BALL_R = 5;                          // the ball is a small square
   const PADDLE_MAX_SPEED = 820;              // px/s — same cap for mouse, keys and computer
   const LIVES = 5;
-  const BR_COLS = 14, BR_ROWS = 6, BR_W = W / BR_COLS, BR_H = 20;
+  const BR_COLS = 14, BR_ROWS = 8, BR_W = W / BR_COLS, BR_H = 16;
   const BR_TOP = H / 2 - (BR_ROWS * BR_H) / 2;
-  const ROW_COLORS = ['#f25c69', '#f0a83c', '#e8d44d', '#2fbf71', '#3cc8e0', '#a77bff'];
+  // mirrored wall: yellow nearest each player, red in the middle
+  const ROWS = ['yellow', 'green', 'orange', 'red', 'red', 'orange', 'green', 'yellow'];
+  const POINTS = { yellow: 1, green: 3, orange: 5, red: 7 };
+  const OVERLAY = { yellow: '#f7d84a', green: '#46d66c', orange: '#ff8f2a', red: '#ff3f33', blue: '#4a8dff' };
+  const PITCH = { yellow: 880, green: 988, orange: 1175, red: 1397 };
 
   Arcade.register({
     id: 'breakout',
     title: 'Breakout',
-    tagline: 'Two paddles, one wall of bricks. Smash through the wall and past your opponent.',
-    flip: 'the computer plays against you.',
-    blurb: 'Each player has a paddle and a ball. Bricks score points. Getting a ball past the other paddle takes one of their lives, and the first player to lose all 5 lives loses. The balls speed up every level, and the computer paddle has the same speed limit as yours.',
-    menuText: 'First to lose <b>5 lives</b> loses. The balls get faster each level, and a fresh wall appears when one is cleared.',
+    year: '1976 · Atari',
+    history: 'Designed by Nolan Bushnell and Steve Bristow, with a prototype by Steve Wozniak. The monitor was black and white; the colours came from strips of cellophane stuck over the screen.',
+    tagline: 'Two paddles, one wall. Break through and get your ball past the other side.',
+    flip: 'the computer plays against you, head to head.',
+    blurb: 'Each player has 5 balls. Bricks score 1/3/5/7 points by colour; getting your ball past the other paddle costs them a ball.',
+    menuText: 'Each side has <b>5 balls</b>. Bricks score <b>1 / 3 / 5 / 7</b>. The ball speeds up after 4 hits, 12 hits, and when it first reaches orange and red, just like 1976.',
+    scoreSide: 'bottom', scoreName: 'points',
     sides: [
-      { key: 'bottom', label: 'Blue (bottom)', human: 'Move the mouse, or use ← →. Click or press Space to serve.', cpu: 'Predicts where the ball will cross its line, bounces included, then aims its return toward gaps in the wall. Its reactions and aim sharpen every level.' },
-      { key: 'top', label: 'Orange (top)', human: 'Move the mouse, or use A / D (← → too if only one human is playing). Click or press Space to serve.', cpu: 'Same brain as the blue computer: it predicts, aims, and gets sharper every level.' }
+      { key: 'bottom', label: 'Player 1 (bottom)', human: 'Mouse, or ← →. Click or Space to serve.', cpu: 'Glances at the ball, guesses where it will land (straight line, one wall bounce), sharpens the guess in the last third of a second, and moves like a hand on a mouse. Brick bounces catch it a reaction-time late.' },
+      { key: 'top', label: 'Player 2 (top)', human: 'Mouse, or A / D (← → too if you\'re the only human). Click or Space to serve.', cpu: 'Same human-like paddle as player 1.' }
     ],
     defaults: { bottom: 'human', top: 'cpu' },
 
-    thumb(ctx, w) {
+    thumb(ctx, w, h) {
       const s = w / W;
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
       for (let r = 0; r < BR_ROWS; r++) for (let c = 0; c < BR_COLS; c++) {
         if ((r * 7 + c * 3) % 11 === 0) continue;
-        ctx.fillStyle = ROW_COLORS[r];
+        ctx.fillStyle = OVERLAY[ROWS[r]];
         ctx.fillRect(c * BR_W * s + 1, (BR_TOP + r * BR_H) * s + 1, BR_W * s - 2, BR_H * s - 2);
       }
-      ctx.fillStyle = C.p1; D.roundRect(ctx, 150 * s, (BOTTOM_Y - 6) * s, PW * s, PH * s, 4); ctx.fill();
-      ctx.fillStyle = C.p2; D.roundRect(ctx, 520 * s, (TOP_Y - 6) * s, PW * s, PH * s, 4); ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(260 * s, 430 * s, 8 * s * 1.6, 0, 7); ctx.fill();
+      ctx.fillStyle = OVERLAY.blue;
+      ctx.fillRect(150 * s, (BOTTOM_Y - 5) * s, PW * s, PH * s);
+      ctx.fillRect(520 * s, (TOP_Y - 5) * s, PW * s, PH * s);
+      ctx.fillStyle = '#fff'; ctx.fillRect(260 * s, 430 * s, 10 * s, 10 * s);
     },
 
     create(api) {
-      let level = 1;
+      let level = 1;                 // which wall (a new one appears when one is cleared)
       let levelTimer = 0;
-      const ballSpeed = () => 330 + (level - 1) * 38;
+      // 1976 rules: speed steps after 4 hits, after 12 hits, and on first contact with
+      // the orange and red rows; plus a small step for each new wall and each long rally
+      let hits = 0, tier = 0, sawOrange = false, sawRed = false, rallyT = 0;
+      const ballSpeed = () => 270 + tier * 30 + (level - 1) * 25;
+      let flashT = 0, frameNo = 0;
 
       const players = {
-        bottom: { key: 'bottom', y: BOTTOM_Y, x: W / 2, vx: 0, lives: LIVES, score: 0, color: C.p1, dirToOpp: -1, target: W / 2, think: 0 },
-        top: { key: 'top', y: TOP_Y, x: W / 2, vx: 0, lives: LIVES, score: 0, color: C.p2, dirToOpp: 1, target: W / 2, think: 0 }
+        bottom: { key: 'bottom', y: BOTTOM_Y, x: W / 2, vx: 0, lives: LIVES, score: 0, dirToOpp: -1, target: W / 2, think: 0 },
+        top: { key: 'top', y: TOP_Y, x: W / 2, vx: 0, lives: LIVES, score: 0, dirToOpp: 1, target: W / 2, think: 0 }
       };
       const other = k => (k === 'bottom' ? players.top : players.bottom);
 
@@ -61,7 +74,7 @@
       function buildWall() {
         bricks = [];
         for (let r = 0; r < BR_ROWS; r++) for (let c = 0; c < BR_COLS; c++)
-          bricks.push({ x: c * BR_W + 1.5, y: BR_TOP + r * BR_H + 1.5, w: BR_W - 3, h: BR_H - 3, row: r, alive: true });
+          bricks.push({ x: c * BR_W + 1, y: BR_TOP + r * BR_H + 1, w: BR_W - 2, h: BR_H - 2, row: r, color: ROWS[r], alive: true });
       }
       buildWall();
 
@@ -82,6 +95,7 @@
         b.owner = b.server;
         b.vx = Math.sin(ang) * ballSpeed();
         b.vy = p.dirToOpp * Math.cos(ang) * ballSpeed();
+        api.sfx('paddle');
       }
 
       // human controls
@@ -99,7 +113,8 @@
 
       /* ---------- computer paddle (plays like a person) ---------- */
       // People don't simulate bounces. They glance at the ball every fraction of
-      // a second, guess where it will come down (straight line, maybe one wall
+      // a second (gaze runs ~150 ms ahead of the ball, and falls behind for ~200 ms
+      // after each bounce), guess where it will come down (straight line, maybe one wall
       // bounce), and refine that guess as it gets closer — so the paddle starts
       // roughly right and makes a late correction. A bounce off a brick is only
       // noticed a reaction-time later. The hand moves like a hand on a mouse:
@@ -141,6 +156,10 @@
           if (g && (!best || g.t < best.t)) best = g;
         });
         if (best) {
+          // eye-tracking studies of Breakout: players look ~150 ms ahead of the ball and
+          // their gaze is closest to the paddle ~300 ms before impact — so the last
+          // moments get quick, precise corrections
+          if (best.t < 0.35) p.look = Math.min(p.look, U.rand(0.06, 0.1));
           // the further away the ball, the rougher the guess
           const sd = (8 + best.t * 55) * U.lerp(1.1, 0.5, s);
           let target = best.x + p.person.scatter(sd);
@@ -149,8 +168,15 @@
           p.target = U.clamp(target, PW / 2, W - PW / 2);
         } else {
           // nothing coming: drift with the ball loosely, like following it with your eyes
-          const any = balls.find(b => !b.stuck);
-          p.target = U.clamp(any ? U.lerp(W / 2, any.x, 0.5) : W / 2, PW / 2, W - PW / 2);
+          // (follow the ball that will come back to you soonest)
+          let next = null, soonest = Infinity;
+          for (const b of balls) {
+            if (b.stuck || !b.vy) continue;
+            const farY = b.vy > 0 ? H : 0;
+            const tBack = Math.abs(farY - b.y) / Math.abs(b.vy) + Math.abs(farY - p.y) / Math.abs(b.vy);
+            if (tBack < soonest) { soonest = tBack; next = b; }
+          }
+          p.target = U.clamp(next ? U.lerp(W / 2, next.x, 0.5) : W / 2, PW / 2, W - PW / 2);
         }
       }
 
@@ -193,31 +219,50 @@
         b.vx = Math.sin(ang) * sp;
         b.vy = p.dirToOpp * Math.cos(ang) * sp;
         b.owner = p.key;
+        api.sfx('paddle');
       }
 
+      // If the ball overlaps more than one brick, hit the one it reached first
+      // (nearest to where it came from) — otherwise a ball from one side would
+      // tunnel a row deeper than a ball from the other.
       function hitBricks(b) {
+        let hit = null, best = Infinity;
+        const px = b.x - b.vx * 0.01, py = b.y - b.vy * 0.01;
         for (const br of bricks) {
           if (!br.alive) continue;
           const cx = U.clamp(b.x, br.x, br.x + br.w), cy = U.clamp(b.y, br.y, br.y + br.h);
           const dx = b.x - cx, dy = b.y - cy;
           if (dx * dx + dy * dy > BALL_R * BALL_R) continue;
-          br.alive = false;
-          players[b.owner].score += 10 + (BR_ROWS - 1 - Math.abs(br.row - 2.5)) * 2 | 0;
-          // bounce along the axis of least penetration
-          const ox = Math.min(Math.abs(b.x + BALL_R - br.x), Math.abs(br.x + br.w - (b.x - BALL_R)));
-          const oy = Math.min(Math.abs(b.y + BALL_R - br.y), Math.abs(br.y + br.h - (b.y - BALL_R)));
-          if (ox < oy) b.vx = -b.vx; else b.vy = -b.vy;
-          return;
+          const d = Math.hypot(br.x + br.w / 2 - px, br.y + br.h / 2 - py);
+          if (d < best) { best = d; hit = br; }
         }
+        if (!hit) return;
+        const br = hit;
+        br.alive = false;
+        players[b.owner].score += POINTS[br.color];
+        api.sfx('brick', { f: PITCH[br.color] });
+        // the 1976 speed-ups
+        hits++;
+        const before = tier;
+        if (hits === 4 || hits === 12) tier++;
+        if (br.color === 'orange' && !sawOrange) { sawOrange = true; tier++; }
+        if (br.color === 'red' && !sawRed) { sawRed = true; tier++; }
+        if (tier !== before) speedUp();
+        // bounce along the axis of least penetration
+        const ox = Math.min(Math.abs(b.x + BALL_R - br.x), Math.abs(br.x + br.w - (b.x - BALL_R)));
+        const oy = Math.min(Math.abs(b.y + BALL_R - br.y), Math.abs(br.y + br.h - (b.y - BALL_R)));
+        if (ox < oy) b.vx = -b.vx; else b.vy = -b.vy;
       }
 
       function loseBall(b, loserKey) {
         const loser = players[loserKey];
         loser.lives--;
-        api.toast(`${loserKey === 'bottom' ? 'Blue' : 'Orange'} loses a life`, loserKey === 'bottom' ? C.p1 : C.p2);
+        flashT = 0.25;
+        api.sfx('lose');
+        api.toast(`${loserKey === 'bottom' ? 'Player 1' : 'Player 2'} loses a ball`);
         if (loser.lives <= 0) {
           const win = other(loserKey).key;
-          api.end(win, `Final score ${players.bottom.score} – ${players.top.score} (blue – orange).`);
+          api.end(win, `Final score ${players.bottom.score} – ${players.top.score}.`);
         }
         // the player who lost the ball serves it next
         b.server = loserKey;
@@ -233,11 +278,16 @@
       return {
         update(dt) {
           levelTimer += dt;
-          if (levelTimer > 28) { level++; levelTimer = 0; api.toast(`Level ${level} — faster ball`, C.warn); speedUp(); }
+          if (flashT > 0) flashT -= dt;
+          // a long rally speeds things up a notch, so games don't stall
+          rallyT += dt;
+          if (rallyT > 35) { rallyT = 0; tier++; speedUp(); api.toast('Faster!'); }
 
-          for (const k in players) movePaddle(players[k], dt);
+          for (const k of (frameNo % 2 ? ['bottom', 'top'] : ['top', 'bottom'])) movePaddle(players[k], dt);
 
-          for (const b of balls) {
+          // alternate which ball moves first each frame, so neither side gets an edge
+          frameNo++;
+          for (const b of (frameNo % 2 ? balls : [...balls].reverse())) {
             if (b.stuck) {
               stickTo(b);
               b.serveT -= dt;
@@ -251,13 +301,13 @@
             for (let i = 0; i < steps; i++) {
               b.x += (b.vx * dt) / steps;
               b.y += (b.vy * dt) / steps;
-              if (b.x < BALL_R) { b.x = BALL_R; b.vx = Math.abs(b.vx); }
-              if (b.x > W - BALL_R) { b.x = W - BALL_R; b.vx = -Math.abs(b.vx); }
-              paddleHit(b, players.bottom);
-              paddleHit(b, players.top);
+              if (b.x < BALL_R) { b.x = BALL_R; b.vx = Math.abs(b.vx); api.sfx('wall'); }
+              if (b.x > W - BALL_R) { b.x = W - BALL_R; b.vx = -Math.abs(b.vx); api.sfx('wall'); }
+              if (frameNo % 2) { paddleHit(b, players.bottom); paddleHit(b, players.top); }
+              else { paddleHit(b, players.top); paddleHit(b, players.bottom); }
               hitBricks(b);
               // stop nearly-horizontal balls from getting stuck bouncing forever
-              if (Math.abs(b.vy) < ballSpeed() * 0.3) b.vy = Math.sign(b.vy || 1) * ballSpeed() * 0.3;
+              if (Math.abs(b.vy) < ballSpeed() * 0.3) b.vy = (b.vy ? Math.sign(b.vy) : (b.owner === 'bottom' ? -1 : 1)) * ballSpeed() * 0.3;
             }
             b.trail.push({ x: b.x, y: b.y });
             if (b.trail.length > 8) b.trail.shift();
@@ -267,8 +317,9 @@
 
           if (bricks.every(br => !br.alive)) {
             buildWall();
-            level++; levelTimer = 0;
-            api.toast(`Wall cleared! Level ${level}`, C.good);
+            level++; levelTimer = 0; hits = 0; sawOrange = sawRed = false;
+            api.toast(`Wall cleared! Wall ${level}`);
+            api.sfx('coin');
             speedUp();
           }
         },
@@ -281,56 +332,41 @@
           if (type === 'down') { mouseActive = true; for (const k of humans) if (controls[k].mouse) tryServe(k); }
         },
 
+        // 1976 look: everything is drawn white on black, then coloured
+        // "cellophane" strips are multiplied over the screen — so the ball turns
+        // yellow, green, orange and red as it flies through the bands, and blue
+        // down by the paddles
         draw(ctx) {
-          ctx.fillStyle = C.bg;
+          ctx.fillStyle = '#000';
           ctx.fillRect(0, 0, W, H);
-          // centre glow
-          const g = ctx.createRadialGradient(W / 2, H / 2, 20, W / 2, H / 2, 420);
-          g.addColorStop(0, 'rgba(79,124,255,.07)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+          ctx.fillStyle = '#fff';
+          for (const br of bricks) if (br.alive) ctx.fillRect(br.x, br.y, br.w, br.h);
+          for (const k in players) { const p = players[k]; ctx.fillRect(p.x - PW / 2, p.y - PH / 2, PW, PH); }
+          for (const b of balls) ctx.fillRect(b.x - BALL_R, b.y - BALL_R, BALL_R * 2, BALL_R * 2);
+          // side walls
+          ctx.fillRect(0, 0, 4, H); ctx.fillRect(W - 4, 0, 4, H);
 
-          for (const br of bricks) {
-            if (!br.alive) continue;
-            ctx.fillStyle = ROW_COLORS[br.row];
-            D.roundRect(ctx, br.x, br.y, br.w, br.h, 3); ctx.fill();
-            ctx.fillStyle = 'rgba(255,255,255,.18)';
-            ctx.fillRect(br.x + 2, br.y + 2, br.w - 4, 3);
-          }
+          // score + balls left: chunky white numerals, like the original's score digits
+          const who = k => (api.isHuman(k) ? '1UP' : 'CPU');
+          D.text(ctx, String(players.top.score).padStart(3, '0'), 18, H / 2 - 104, { size: 26, pixel: true, color: '#fff' });
+          D.text(ctx, `${who('top')}  BALL ${Math.max(1, LIVES - players.top.lives + 1)}`, 18, H / 2 - 78, { size: 10, pixel: true, color: '#fff' });
+          D.text(ctx, String(players.bottom.score).padStart(3, '0'), 18, H / 2 + 104, { size: 26, pixel: true, color: '#fff' });
+          D.text(ctx, `${api.isHuman('bottom') ? '1UP' : 'CPU'}  BALL ${Math.max(1, LIVES - players.bottom.lives + 1)}`, 18, H / 2 + 78, { size: 10, pixel: true, color: '#fff' });
+          D.text(ctx, `WALL ${level}`, W - 18, H / 2 - 104, { size: 10, pixel: true, color: '#fff', align: 'right' });
+          for (const b of balls) if (b.stuck && api.isHuman(b.server) && b.serveT < 1.0 && Math.floor(api.time * 2) % 2)
+            D.text(ctx, 'SERVE', players[b.server].x, b.server === 'bottom' ? BOTTOM_Y - 30 : TOP_Y + 30, { size: 10, pixel: true, color: '#fff', align: 'center' });
 
-          for (const k in players) {
-            const p = players[k];
-            ctx.fillStyle = p.color;
-            ctx.shadowColor = p.color; ctx.shadowBlur = 14;
-            D.roundRect(ctx, p.x - PW / 2, p.y - PH / 2, PW, PH, 6); ctx.fill();
-            ctx.shadowBlur = 0;
-          }
-
-          for (const b of balls) {
-            const col = players[b.owner].color;
-            b.trail.forEach((t, i) => {
-              ctx.globalAlpha = (i / b.trail.length) * 0.35;
-              ctx.fillStyle = col;
-              ctx.beginPath(); ctx.arc(t.x, t.y, BALL_R * (i / b.trail.length), 0, 7); ctx.fill();
-            });
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = '#fff';
-            ctx.beginPath(); ctx.arc(b.x, b.y, BALL_R, 0, 7); ctx.fill();
-            ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke();
-            if (b.stuck && api.isHuman(b.server) && b.serveT < 1.0) {
-              D.text(ctx, 'click / space to serve', players[b.server].x, b.server === 'bottom' ? BOTTOM_Y - 34 : TOP_Y + 34,
-                { size: 12, color: C.muted, align: 'center' });
-            }
-          }
-
-          // side scoreboards (vertical, so they don't cover the paddles)
-          const who = k => (api.isHuman(k) ? 'YOU' : 'CPU');
-          const lives = n => '●'.repeat(Math.max(0, n)) + '○'.repeat(Math.max(0, LIVES - n));
-          D.text(ctx, `${who('top')} ${players.top.score}`, 14, H / 2 - 92, { size: 16, color: C.p2, pixel: true });
-          D.text(ctx, lives(players.top.lives), 14, H / 2 - 70, { size: 14, color: C.p2 });
-          D.text(ctx, `${who('bottom')} ${players.bottom.score}`, 14, H / 2 + 92, { size: 16, color: C.p1, pixel: true });
-          D.text(ctx, lives(players.bottom.lives), 14, H / 2 + 70, { size: 14, color: C.p1 });
-          D.text(ctx, `LV ${level}`, W - 14, H / 2 - 82, { size: 16, color: C.muted, pixel: true, align: 'right' });
+          // the cellophane overlay
+          ctx.save();
+          ctx.globalCompositeOperation = 'multiply';
+          ROWS.forEach((c, r) => { ctx.fillStyle = OVERLAY[c]; ctx.fillRect(0, BR_TOP + r * BR_H, W, BR_H); });
+          ctx.fillStyle = OVERLAY.blue;
+          ctx.fillRect(0, BOTTOM_Y - 26, W, 50);
+          ctx.fillRect(0, TOP_Y - 24, W, 50);
+          ctx.restore();
+          if (flashT > 0) { ctx.fillStyle = `rgba(255,255,255,${flashT * 0.5})`; ctx.fillRect(0, 0, W, H); }
         },
+        score: () => players.bottom.score,
         _state: () => ({ level, bottom: players.bottom.lives, top: players.top.lives })
       };
 

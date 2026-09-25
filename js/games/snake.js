@@ -101,29 +101,32 @@
     return n;
   }
 
+  // Nokia 3310 LCD: two colours only (Lospec "Nokia 3310" palette)
+  const LCD = '#c7f0d8', INK = '#43523d', INK_SOFT = 'rgba(67,82,61,.14)';
+
   Arcade.register({
     id: 'snake',
     title: 'Snake',
-    tagline: 'One side steers the snake. The other side decides where every apple goes.',
+    year: '1998 · Nokia 6110 (after Blockade, 1976)',
+    history: 'Nokia shipped Snake on its phones from 1998; on the 3310 it ran on a two-tone green LCD, and higher levels were faster and worth more per bite. The Museum of Modern Art added it to its collection in 2012.',
+    tagline: 'One side steers the snake. The other decides where every apple goes.',
     flip: 'you place the apples, the computer steers.',
-    blurb: 'The snake needs 30 apples to win. The apple placer wins if the snake crashes or starves. Apples must be reachable and at least 3 cells away, and the hunger clock is set from the real distance, so the only way to starve the snake is to trap it behind its own body.',
-    menuText: 'Snake wins at <b>30 apples</b>. Apples win on a <b>crash or starvation</b>. The snake gets faster and longer as it eats.',
+    blurb: 'The snake needs 30 apples to win. The apple placer wins if the snake crashes or starves.',
+    menuText: 'Snake wins at <b>30 apples</b>. Apples win on a <b>crash or starvation</b>. It gets faster, longer and worth more every 5 apples.',
+    scoreSide: 'snake', scoreName: 'points',
     sides: [
-      { key: 'snake', label: 'Snake', human: 'Arrow keys or WASD to steer.', cpu: 'Plans a path with a search that knows where its body will be, and checks it can still reach its own tail after eating. It gets more careful as the game goes on.' },
-      { key: 'apples', label: 'Apples', human: 'Click an empty cell to drop the next apple. You have a few seconds, or it lands at random.', cpu: 'Places apples at random at first, then looks for dead ends and apples that would trap the snake after eating.' }
+      { key: 'snake', label: 'Snake', human: 'Arrow keys or WASD to steer. Each apple is worth 10 × the level.', cpu: 'Plays like a person: heads for the apple on an L-shaped route, turns early before walls, hugs the edges when long, and sometimes turns a step late or misjudges a dead end.' },
+      { key: 'apples', label: 'Apples', human: 'Click an empty cell to drop the next apple (it must be reachable and 3+ cells away). Trap the snake behind its own body to starve it.', cpu: 'Mostly drops apples "somewhere far away"; as the game goes on, tucks them behind the body or into corners more often.' }
     ],
     defaults: { snake: 'cpu', apples: 'human' },
 
     thumb(ctx, w, h) {
+      ctx.fillStyle = LCD; ctx.fillRect(0, 0, w, h);
       const s = w / 16;
-      ctx.fillStyle = C.grid;
-      for (let y = 0; y < 12; y++) for (let x = 0; x < 16; x++) if ((x + y) % 2) ctx.fillRect(x * s, y * s, s, s);
-      const body = [[9, 6], [8, 6], [7, 6], [6, 6], [6, 5], [6, 4], [5, 4], [4, 4], [3, 4]];
-      body.forEach(([x, y], i) => {
-        ctx.fillStyle = i === 0 ? '#7ff0a8' : `hsl(${145 - i * 3},62%,${52 - i * 2}%)`;
-        D.roundRect(ctx, x * s + 2, y * s + 2, s - 4, s - 4, 6); ctx.fill();
-      });
-      ctx.fillStyle = C.bad; ctx.beginPath(); ctx.arc(12.5 * s, 6.5 * s, s * 0.36, 0, 7); ctx.fill();
+      ctx.fillStyle = INK;
+      ctx.fillRect(4, 4, w - 8, 4); ctx.fillRect(4, h - 8, w - 8, 4); ctx.fillRect(4, 4, 4, h - 8); ctx.fillRect(w - 8, 4, 4, h - 8);
+      [[9, 6], [8, 6], [7, 6], [6, 6], [6, 5], [6, 4], [5, 4], [4, 4], [3, 4]].forEach(([x, y]) => ctx.fillRect(x * s + 2, y * s + 2, s - 3, s - 3));
+      ctx.fillRect(12 * s + s / 3, 6 * s, s / 3, s); ctx.fillRect(12 * s, 6 * s + s / 3, s, s / 3);
     },
 
     create(api) {
@@ -150,6 +153,8 @@
       let hover = null;
       let flash = 0;
       let deathT = 0, bonk = null;                    // crash animation
+      let score = 0;
+      let ghosts = [];                                 // LCD ghosting: cells the tail just left fade out slowly
       const person = new Arcade.Human({ reaction: 0.26, lapseRate: 0.025 });
 
       /* ----- apple placement (shared validation) ----- */
@@ -164,6 +169,7 @@
 
       function place(x, y) {
         apple = { x, y };
+        api.sfx('blip', { f: 520 });
         const p = bfs(snake, grow, apple);
         const len = p ? p.length : Math.abs(snake[0].x - x) + Math.abs(snake[0].y - y);
         hungerMax = hunger = stepTime() * (len * 2 + 22);
@@ -302,25 +308,30 @@
         if (!inside(head.x, head.y) || hitsBody) {
           dead = 'crash';
           bonk = { x: dir.x, y: dir.y, wall: !inside(head.x, head.y) };
+          api.sfx('crash');
           const what = bonk.wall ? 'hit the wall' : 'ran into itself';
           return api.end('apples', `The snake ${what} after eating ${eaten} apple${eaten === 1 ? '' : 's'}.`, 1800);
         }
         snake.unshift(head);
-        if (grow > 0) grow--; else snake.pop();
+        if (grow > 0) grow--; else { const t = snake.pop(); ghosts.push({ x: t.x, y: t.y, a: 0.5 }); }
         if (apple && head.x === apple.x && head.y === apple.y) {
           eaten++;
+          score += 10 * (1 + Math.floor((eaten - 1) / 5));
           grow += growPerApple();
+          api.sfx('eat');
           apple = null;
           placeLeft = placeWindow();
-          cpuThink = U.rand(0.35, 0.9);
+          cpuThink = person.react(true) + U.rand(0.2, 0.8) + person.point(U.rand(150, 500), CELL);    // look, decide, move the mouse, click
           if (eaten >= TARGET) api.end('snake', `All ${TARGET} apples eaten — the snake is ${snake.length + grow} long.`);
-          else if (eaten % 5 === 0) api.toast(`Level ${1 + eaten / 5} — faster!`, C.warn);
+          else if (eaten % 5 === 0) api.toast(`Level ${1 + eaten / 5} — faster!`);
         }
       }
 
       return {
         update(dt) {
           if (flash > 0) flash -= dt;
+          for (const g of ghosts) g.a -= dt * 3;
+          ghosts = ghosts.filter(g => g.a > 0);
           if (dead) { deathT += dt; return; }
           if (eaten >= TARGET) return;
           // apple placement phase runs alongside the snake
@@ -331,12 +342,13 @@
               if (cpuThink <= 0) cpuPlace();
             } else if (placeLeft <= 0) {
               randomPlace();
-              api.toast('Too slow — random apple', C.muted);
+              api.toast('Too slow — random apple');
             }
           } else {
             hunger -= dt;
             if (hunger <= 0) {
               dead = 'starved';
+              api.sfx('lose');
               return api.end('apples', `The snake starved after ${eaten} apple${eaten === 1 ? '' : 's'}.`, 1800);
             }
           }
@@ -361,100 +373,106 @@
           hover = inside(cx, cy) ? { x: cx, y: cy } : null;
           if (type === 'down' && !apple && hover) {
             const why = validity(cx, cy);
-            if (why) api.toast(why, C.bad); else place(cx, cy);
+            if (why) api.toast(why); else place(cx, cy);
           }
         },
 
+        // Nokia-style LCD: two colours, chunky pixels, a faint pixel grid and
+        // ghosting where the tail has just been
         draw(ctx) {
-          ctx.fillStyle = C.bg;
+          ctx.fillStyle = LCD;
           ctx.fillRect(0, 0, api.W, api.H);
-          // board
-          ctx.fillStyle = '#0c1329';
-          for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++)
-            if ((x + y) % 2) ctx.fillRect(x * CELL, TOP + y * CELL, CELL, CELL);
+          // pixel grid of the LCD
+          ctx.fillStyle = INK_SOFT;
+          for (let x = 0; x <= COLS; x++) ctx.fillRect(x * CELL, TOP, 1, ROWS * CELL);
+          for (let y = 0; y <= ROWS; y++) ctx.fillRect(0, TOP + y * CELL, COLS * CELL, 1);
+          // playfield border
+          ctx.fillStyle = INK;
+          ctx.fillRect(0, TOP - 4, api.W, 3);
 
-          // placement hint for a human placer
+          const px = (x, y, a = 1, pad = 2) => { ctx.globalAlpha = a; ctx.fillRect(x * CELL + pad, TOP + y * CELL + pad, CELL - pad * 2, CELL - pad * 2); ctx.globalAlpha = 1; };
+
+          // placement hint for a human placer: a dotted cell
           if (!apple && api.isHuman('apples') && hover) {
             const ok = !validity(hover.x, hover.y);
-            ctx.fillStyle = ok ? 'rgba(47,191,113,.35)' : 'rgba(242,92,105,.3)';
-            ctx.fillRect(hover.x * CELL, TOP + hover.y * CELL, CELL, CELL);
+            ctx.strokeStyle = INK; ctx.setLineDash(ok ? [3, 3] : [1, 5]); ctx.lineWidth = 2;
+            ctx.strokeRect(hover.x * CELL + 3, TOP + hover.y * CELL + 3, CELL - 6, CELL - 6);
+            ctx.setLineDash([]);
           }
 
-          // apple
+          // food: the Nokia "plus" shaped bite
           if (apple) {
-            const ax = apple.x * CELL + CELL / 2, ay = TOP + apple.y * CELL + CELL / 2;
-            const r = CELL * 0.38 + (flash > 0 ? flash * 14 : 0);
-            ctx.fillStyle = C.bad;
-            ctx.beginPath(); ctx.arc(ax, ay + 1, r, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = C.good;
-            ctx.beginPath(); ctx.ellipse(ax + 4, ay - r + 1, 4, 2.2, -0.6, 0, Math.PI * 2); ctx.fill();
+            const ax = apple.x * CELL, ay = TOP + apple.y * CELL, u = CELL / 5;
+            const blinkOn = flash <= 0 || Math.floor(flash * 20) % 2 === 0;
+            if (blinkOn) {
+              ctx.fillStyle = INK;
+              ctx.fillRect(ax + 2 * u, ay + u * 0.6, u, u * 3.8);
+              ctx.fillRect(ax + u * 0.6, ay + 2 * u, u * 3.8, u);
+            }
           }
 
-          // snake (with a crash / starve animation)
-          const n = snake.length;
-          const blink = dead === 'crash' && deathT < 0.9 && Math.floor(deathT * 10) % 2 === 0;
-          const shake = dead === 'crash' && deathT < 0.35 ? (Math.random() - 0.5) * 6 : 0;
-          ctx.save();
-          ctx.translate(shake, shake * 0.5);
-          for (let i = n - 1; i >= 0; i--) {
-            const s = snake[i];
-            const t = i / Math.max(1, n - 1);
-            let col = i === 0 ? '#7ff0a8' : `hsl(${145 - t * 40},${65 - t * 15}%,${55 - t * 18}%)`;
-            if (dead) {
-              const fade = U.clamp((deathT - 0.3 - (dead === 'starved' ? (1 - t) * 0.8 : 0)) / 0.8, 0, 1);
-              col = blink ? '#ffffff' : `hsl(${145 - t * 40},${U.lerp(55, 5, fade)}%,${U.lerp(50, 28, fade)}%)`;
+          // ghosting
+          ctx.fillStyle = INK;
+          for (const g of ghosts) px(g.x, g.y, g.a * 0.35);
+
+          // snake — blinks when it dies, like on the phone
+          const visible = !dead || deathT > 1.2 || Math.floor(deathT * 6) % 2 === 0;
+          const shake = dead === 'crash' && deathT < 0.3 ? (Math.random() - 0.5) * 6 : 0;
+          if (visible) {
+            ctx.save();
+            ctx.translate(shake, 0);
+            const n = snake.length;
+            for (let i = n - 1; i >= 0; i--) {
+              const s = snake[i];
+              let a = 1;
+              if (dead === 'starved') a = U.clamp(1 - (deathT - (1 - i / n) * 0.6) * 1.2, 0.15, 1);
+              ctx.fillStyle = INK;
+              let ox = 0, oy = 0;
+              if (i === 0 && bonk) { const k = Math.min(1, deathT * 8) * 6; ox = bonk.x * k; oy = bonk.y * k; }
+              ctx.globalAlpha = a;
+              ctx.fillRect(s.x * CELL + 2 + ox, TOP + s.y * CELL + 2 + oy, CELL - 4, CELL - 4);
+              // body segments are joined, like the phone's snake
+              const nxt = snake[i - 1];
+              if (nxt) {
+                const jx = (s.x + nxt.x) / 2, jy = (s.y + nxt.y) / 2;
+                ctx.fillRect(jx * CELL + 4, TOP + jy * CELL + 4, CELL - 8, CELL - 8);
+              }
+              ctx.globalAlpha = 1;
             }
-            ctx.fillStyle = col;
-            const pad = i === 0 ? 1 : 2.5;
-            let ox = 0, oy = 0;
-            if (i === 0 && bonk) { const k = Math.min(1, deathT * 8) * 7; ox = bonk.x * k; oy = bonk.y * k; }  // head pushed into what it hit
-            D.roundRect(ctx, s.x * CELL + pad + ox, TOP + s.y * CELL + pad + oy, CELL - pad * 2, CELL - pad * 2, 7);
-            ctx.fill();
+            // eye (an X once it's dead)
+            const h = snake[0];
+            const hx = h.x * CELL + CELL / 2 + dir.x * 4 - dir.y * 4 + (bonk ? bonk.x * 6 : 0);
+            const hy = TOP + h.y * CELL + CELL / 2 + dir.y * 4 + dir.x * 4 + (bonk ? bonk.y * 6 : 0);
+            ctx.fillStyle = LCD;
+            if (dead) { ctx.fillRect(hx - 3, hy - 3, 2, 2); ctx.fillRect(hx + 1, hy + 1, 2, 2); ctx.fillRect(hx + 1, hy - 3, 2, 2); ctx.fillRect(hx - 3, hy + 1, 2, 2); }
+            else ctx.fillRect(hx - 2, hy - 2, 4, 4);
+            ctx.restore();
           }
-          // eyes (crossed out once it's dead)
-          const h = snake[0];
-          const hx = h.x * CELL + CELL / 2 + (bonk ? bonk.x * 7 : 0), hy = TOP + h.y * CELL + CELL / 2 + (bonk ? bonk.y * 7 : 0);
-          ctx.strokeStyle = ctx.fillStyle = '#062012';
-          ctx.lineWidth = 2;
-          for (const side of [-1, 1]) {
-            const ex = hx + dir.x * 5 + dir.y * side * 5, ey = hy + dir.y * 5 - dir.x * side * 5;
-            if (dead) {
-              ctx.beginPath(); ctx.moveTo(ex - 2.5, ey - 2.5); ctx.lineTo(ex + 2.5, ey + 2.5); ctx.moveTo(ex + 2.5, ey - 2.5); ctx.lineTo(ex - 2.5, ey + 2.5); ctx.stroke();
-            } else { ctx.beginPath(); ctx.arc(ex, ey, 2.6, 0, Math.PI * 2); ctx.fill(); }
-          }
-          // impact stars
-          if (dead === 'crash' && deathT < 1.2) {
-            const cx = hx + bonk.x * 10, cy = hy + bonk.y * 10;
-            ctx.fillStyle = C.warn;
-            for (let k = 0; k < 5; k++) {
-              const a = k * 1.256 + deathT * 4, r = 8 + deathT * 18;
-              ctx.globalAlpha = Math.max(0, 1 - deathT);
-              ctx.fillRect(cx + Math.cos(a) * r - 2, cy + Math.sin(a) * r - 2, 4, 4);
-            }
-            ctx.globalAlpha = 1;
-          }
-          ctx.restore();
-          if (dead && deathT > 0.4) {
-            const msg = dead === 'starved' ? 'STARVED' : bonk && bonk.wall ? 'BONK!' : 'OUCH!';
-            D.text(ctx, msg, api.W / 2, TOP + 120, { size: 40, pixel: true, align: 'center', color: C.bad, glow: C.bad });
+          if (dead && deathT > 0.5) {
+            ctx.fillStyle = LCD; ctx.fillRect(api.W / 2 - 170, TOP + 150, 340, 70);
+            ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.strokeRect(api.W / 2 - 170, TOP + 150, 340, 70);
+            D.text(ctx, dead === 'starved' ? 'STARVED' : 'GAME OVER', api.W / 2, TOP + 186, { size: 24, pixel: true, align: 'center', color: INK });
           }
 
-          // HUD
+          // status line, phone style
           const who = side => (api.isHuman(side) ? 'YOU' : 'CPU');
-          D.hud(ctx, [
-            { text: `SNAKE · ${who('snake')}`, color: C.good, pixel: true },
-            { text: `APPLES ${eaten}/${TARGET}   LV ${1 + Math.floor(eaten / 5)}`, align: 'center', pixel: true },
-            { text: `${who('apples')} · APPLES`, color: C.bad, align: 'right', pixel: true }
-          ]);
-          // hunger bar or placement timer
-          if (apple) {
-            D.bar(ctx, 0, 40, api.W, 6, hunger / hungerMax, hunger / hungerMax < 0.3 ? C.bad : C.warn, C.panel);
-          } else {
-            D.bar(ctx, 0, 40, api.W, 6, placeLeft / placeWindow(), C.accent, C.panel);
-            if (api.isHuman('apples')) D.text(ctx, `Click to place an apple · ${Math.max(0, placeLeft).toFixed(1)}s`, api.W / 2, 64, { size: 13, color: C.accent, align: 'center' });
+          D.text(ctx, String(score).padStart(4, '0'), 12, 24, { size: 18, pixel: true, color: INK });
+          D.text(ctx, `${eaten}/${TARGET}`, api.W / 2 - 110, 24, { size: 12, pixel: true, color: INK, align: 'center' });
+          D.text(ctx, `LV${1 + Math.floor(eaten / 5)}`, api.W / 2 - 20, 24, { size: 12, pixel: true, color: INK, align: 'center' });
+          D.text(ctx, `SNAKE:${who('snake')} FOOD:${who('apples')}`, api.W - 12, 24, { size: 10, pixel: true, color: INK, align: 'right' });
+          // hunger (or the placement countdown) as a segmented bar
+          const t = apple ? hunger / hungerMax : placeLeft / placeWindow();
+          const segs = 12, filled = Math.ceil(U.clamp(t, 0, 1) * segs);
+          for (let i = 0; i < segs; i++) {
+            ctx.fillStyle = INK; ctx.globalAlpha = i < filled ? (apple && t < 0.3 && Math.floor(api.time * 6) % 2 ? 0.3 : 1) : 0.15;
+            ctx.fillRect(api.W / 2 + 40 + i * 9, 16, 7, 14);
           }
+          ctx.globalAlpha = 1;
+          if (!apple && api.isHuman('apples')) D.text(ctx, 'PLACE FOOD!', api.W / 2 + 200, 24, { size: 10, pixel: true, color: INK });
         },
 
+        score: () => score,
+        endTitle: () => (dead ? 'Game over' : 'Snake wins'),
         // for tests
         _state: () => ({ eaten, length: snake.length, dead })
       };

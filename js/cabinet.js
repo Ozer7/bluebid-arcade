@@ -1,275 +1,446 @@
 /* ==========================================================================
-   BlueBid Arcade — the cabinet (menu, side pickers, stage)
+   Cocktail Cabinet — the front end
+   Game select (attract mode with a live demo), "who's playing", pause,
+   game over with 3-letter initials and a top-5 high-score table.
+   Everything works from the keyboard (arrows, Enter, Esc, P, M) or the mouse.
    ========================================================================== */
 (function () {
   'use strict';
 
   // Imitation runs as a Claude artifact (it needs Claude and a shared
-  // matchmaking store, neither of which a static site can host without a
-  // server or an API key). Paste the published artifact link here.
+  // matchmaking store, which a static site can't host without a server).
   const IMITATION_URL = 'https://claude.ai/artifact/6ykMELAsH8QmF3ZdVYU3ZT';
+  const IMITATION = {
+    id: 'imitation', title: 'Imitation', year: '2023 · after "Human or Not" (AI21 Labs)',
+    flip: 'play the AI, or another human in a second browser.', external: IMITATION_URL
+  };
 
-  const $ = sel => document.querySelector(sel);
-  const cabinet = $('#cabinet'), stage = $('#stage');
-  const canvas = $('#screen'), overlay = $('#overlay');
+  const $ = s => document.querySelector(s);
+  const machine = $('#machine'), selectEl = $('#select'), playEl = $('#play');
+  const overlay = $('#overlay'), ovBox = $('#ovBox');
   const games = Arcade.games;
+  const entries = [...games, IMITATION];
 
-  let current = null;      // current game definition
-  let runner = null;       // live Runner (real game or attract-mode demo)
-  let roles = {};          // chosen roles for current game
-  let demo = false;        // true while the attract-mode demo plays behind the menu
+  let mode = 'select';         // 'select' | 'play'
+  let sel = 0;                 // highlighted entry on the select screen
+  let current = null;          // game being played
+  let roles = {};
+  let preview = null, runner = null, demoMode = false;
+  let idle = 0, idleTimer = 0;
+  let nav = null;              // keyboard navigation inside an overlay
 
   const store = {
     get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } }
   };
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  /* ---------------- cabinet grid ---------------- */
-  function buildGrid() {
-    const grid = $('#grid');
-    for (const g of games) {
+  /* ================= sound + global keys ================= */
+  function unlockSound() { Arcade.sound.unlock(); }
+  window.addEventListener('pointerdown', unlockSound, { capture: true });
+  window.addEventListener('keydown', unlockSound, { capture: true });
+  function renderSound() {
+    const on = !Arcade.sound.muted;
+    $('#btnSound').setAttribute('aria-pressed', String(on));
+    $('#soundLabel').textContent = on ? 'Sound' : 'Muted';
+  }
+  function toggleSound() { Arcade.sound.setMuted(!Arcade.sound.muted); renderSound(); Arcade.sfx('select'); }
+  renderSound();
+
+  /* ================= select screen (attract mode) ================= */
+  function buildList() {
+    const list = $('#gameList');
+    list.innerHTML = '';
+    entries.forEach((g, i) => {
+      const li = document.createElement('li');
       const b = document.createElement('button');
-      b.className = 'gamecard';
       b.type = 'button';
-      b.innerHTML = `<canvas width="400" height="300" aria-hidden="true"></canvas>
-        <div class="body"><h3></h3><p></p><div class="flip"><b>Flip:</b> <span></span></div></div>`;
-      b.querySelector('h3').textContent = g.title;
-      b.querySelector('p').textContent = g.tagline;
-      b.querySelector('.flip span').textContent = g.flip;
-      b.addEventListener('click', () => { location.hash = g.id; });
-      grid.appendChild(b);
-      drawThumb(b.querySelector('canvas'), g);
+      b.innerHTML = `<span class="no">${i + 1}</span><span class="nm"></span><span class="yr"></span>`;
+      b.querySelector('.nm').textContent = g.title;
+      b.querySelector('.yr').textContent = (g.year || '').split('·')[0].trim() + (g.external ? ' · opens in Claude' : '');
+      b.addEventListener('mouseenter', () => { if (sel !== i) choose(i); });
+      b.addEventListener('focus', () => { if (sel !== i) choose(i); });
+      b.addEventListener('click', () => { choose(i); startSelected(); });
+      li.appendChild(b);
+      list.appendChild(li);
+    });
+  }
+
+  function choose(i) {
+    sel = (i + entries.length) % entries.length;
+    idle = 0;
+    [...$('#gameList').querySelectorAll('button')].forEach((b, k) => b.setAttribute('aria-current', String(k === sel)));
+    const g = entries[sel];
+    $('#selOrig').textContent = 'Original: ' + (g.year || '');
+    $('#selFlip').innerHTML = `<b>Flip:</b> ${esc(g.flip)}`;
+    renderScores($('#selScores'), g);
+    renderCard(g);
+    startPreview(g);
+    Arcade.sfx('select');
+  }
+
+  function renderScores(el, g, highlight) {
+    if (g.external) { el.innerHTML = '<h3>Players guess right 68% of the time</h3><p class="empty">(the Human or Not study, 2023)</p>'; return; }
+    const t = Arcade.scores.get(g.id);
+    const rows = [];
+    for (let i = 0; i < 5; i++) {
+      const r = t[i];
+      rows.push(r ? `<li${highlight === i ? ' class="me"' : ''}><span>${i + 1}.</span><span>${esc(r.name)}</span><span>${r.score}</span></li>`
+        : `<li class="empty"><span>${i + 1}.</span><span>---</span><span>0</span></li>`);
     }
-    // Imitation — the seventh cabinet slot
-    const a = document.createElement('a');
-    a.className = 'gamecard';
-    a.href = IMITATION_URL;
-    a.target = '_blank';
-    a.rel = 'noopener';
-    a.innerHTML = `<canvas width="400" height="300" aria-hidden="true"></canvas>
-      <div class="body"><span class="tag">Opens in Claude</span><h3>Imitation</h3>
-      <p>Chat for two minutes, then guess: were you talking to a person or to Claude?</p>
-      <div class="flip"><b>Flip:</b> <span>play the AI, or another human in a second browser.</span></div></div>`;
-    grid.appendChild(a);
-    drawImitationThumb(a.querySelector('canvas'));
+    el.innerHTML = `<h3>High scores · ${esc(g.scoreName || 'score')}</h3><ol>${rows.join('')}</ol>`;
   }
 
-  function drawThumb(cv, g) {
+  function startPreview(g) {
+    if (preview) preview.destroy();
+    preview = null;
+    const cv = $('#preview');
+    if (g.external) { preview = imitationDemo(cv); return; }
+    const cpu = {};
+    g.sides.forEach(s => (cpu[s.key] = 'cpu'));
+    const r = (preview = new Arcade.Runner(cv, g, cpu, {
+      onEnd: () => setTimeout(() => { if (preview === r && mode === 'select') startPreview(g); }, 1600)
+    }));
+    r.quiet = true;
+  }
+
+  // a little terminal animation for Imitation's preview
+  function imitationDemo(cv) {
     const ctx = cv.getContext('2d');
-    ctx.fillStyle = Arcade.C.bg;
-    ctx.fillRect(0, 0, cv.width, cv.height);
-    try { g.thumb(ctx, cv.width, cv.height); } catch (e) { console.warn(e); }
-  }
-
-  function drawImitationThumb(cv) {
-    const ctx = cv.getContext('2d'), C = Arcade.C, D = Arcade.draw;
-    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, 400, 300);
-    const bubble = (x, y, w, col, right) => {
-      ctx.fillStyle = col; D.roundRect(ctx, x, y, w, 34, 14); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,.55)';
-      for (let i = 0; i < 3; i++) ctx.fillRect(x + 16 + i * ((w - 40) / 3), y + 15, (w - 60) / 3, 5);
-      void right;
+    const lines = [['them', 'hey whats up'], ['you', 'not much, you a bot?'], ['them', 'lol no. are YOU a bot'], ['you', 'what did you have for lunch'],
+      ['them', 'cold pizza, dont judge'], ['you', 'hmm...'], ['sys', 'TIME. HUMAN OR AI?']];
+    let t = 0, raf = 0, last = 0;
+    const loop = ts => {
+      raf = requestAnimationFrame(loop);
+      t += Math.min(0.1, (ts - (last || ts)) / 1000); last = ts;
+      ctx.fillStyle = '#020a04'; ctx.fillRect(0, 0, 800, 600);
+      ctx.font = '38px VT323, monospace'; ctx.textBaseline = 'top';
+      let chars = Math.floor(t * 18), y = 40;
+      for (const [who, txt] of lines) {
+        if (chars <= 0) break;
+        const shown = txt.slice(0, chars); chars -= txt.length + 8;
+        ctx.fillStyle = who === 'you' ? '#7bff5a' : who === 'sys' ? '#ffd23f' : '#b9ffc0';
+        ctx.fillText((who === 'you' ? '> ' : who === 'sys' ? '' : '< ') + shown, 50, y); y += 70;
+      }
+      if (Math.floor(t * 2) % 2) { ctx.fillStyle = '#7bff5a'; ctx.fillRect(50, y, 18, 32); }
+      if (t > 14) t = 0;
     };
-    bubble(40, 60, 190, C.line);
-    bubble(170, 110, 190, C.accent);
-    bubble(40, 160, 150, C.line);
-    D.text(ctx, 'HUMAN?', 110, 245, { size: 22, pixel: true, color: C.good, align: 'center' });
-    D.text(ctx, 'AI?', 290, 245, { size: 22, pixel: true, color: C.warn, align: 'center' });
+    raf = requestAnimationFrame(loop);
+    return { destroy() { cancelAnimationFrame(raf); } };
   }
 
-  /* ---------------- routing ---------------- */
+  function startSelected() {
+    const g = entries[sel];
+    Arcade.sfx('coin');
+    if (g.external) { const a = document.createElement('a'); a.href = g.external; a.target = '_blank'; a.rel = 'noopener'; a.click(); return; }
+    location.hash = g.id;
+  }
+
+  /* ================= instruction card + marquee ================= */
+  function renderCard(g) {
+    $('#cardTitle').textContent = g.external ? 'Imitation · how to play' : `${g.title} · how to play`;
+    if (g.external) {
+      $('#cardBody').innerHTML = `<p class="goal">Chat with a stranger for two minutes, taking turns, then guess: a person, or Claude? You can play another person in a second browser. If nobody else is searching, Claude plays the other side and tries to pass as human.</p>
+        <p class="src">Based on AI21 Labs' "Human or Not" (2023): 2-minute chats, turn-taking, 100-character messages, 20 seconds per message. Players guessed right 68% of the time.</p>`;
+      return;
+    }
+    const cols = g.sides.map(s => `<div><h3>${esc(s.label)}</h3><p><b>You:</b> ${esc(s.human)}</p><p><b>Computer:</b> ${esc(s.cpu)}</p></div>`).join('');
+    $('#cardBody').innerHTML = `<p class="goal">${g.menuText || esc(g.tagline)}</p><div class="cols">${cols}</div>
+      <p class="src">Original: ${esc(g.year || '')}. ${esc(g.history || '')}</p>`;
+  }
+  function setMarquee(g) {
+    if (!g) {
+      machine.dataset.game = '';
+      $('#marqueeKicker').textContent = 'BlueBid Arcade presents';
+      $('#marqueeTitle').textContent = 'Cocktail Cabinet';
+      $('#marqueeSub').textContent = '7 games · human or CPU on either side';
+      return;
+    }
+    machine.dataset.game = g.id;
+    $('#marqueeKicker').textContent = 'Original: ' + g.year;
+    $('#marqueeTitle').textContent = g.title;
+    $('#marqueeSub').textContent = g.tagline;
+  }
+
+  /* ================= routing ================= */
   function route() {
     const id = location.hash.replace('#', '');
     const g = games.find(x => x.id === id);
-    if (g) openGame(g); else closeGame();
+    if (g) openGame(g); else showSelect();
   }
-
-  function closeGame() {
+  function showSelect() {
     stopRunner();
+    mode = 'select';
     current = null;
-    stage.hidden = true;
-    cabinet.hidden = false;
-    document.title = 'BlueBid Arcade — the cocktail cabinet';
+    setMarquee(null);
+    playEl.hidden = true;
+    selectEl.hidden = false;
+    $('#deckHelp').textContent = '↑ ↓ choose · Enter start · M sound';
+    document.title = 'Cocktail Cabinet — BlueBid Arcade';
+    choose(sel);
   }
-
   function openGame(g) {
+    if (preview) { preview.destroy(); preview = null; }
+    mode = 'play';
     current = g;
+    sel = entries.indexOf(g);
     roles = Object.assign({}, g.defaults, store.get('roles:' + g.id) || {});
-    cabinet.hidden = true;
-    stage.hidden = false;
-    $('#gameTitle').textContent = g.title;
-    $('#gameBlurb').textContent = g.blurb;
-    document.title = g.title + ' — BlueBid Arcade';
-    window.scrollTo(0, 0);
-    showMenu();
+    setMarquee(g);
+    renderCard(g);
+    selectEl.hidden = true;
+    playEl.hidden = false;
+    $('#deckHelp').textContent = 'Enter start · P pause · Esc back · M sound';
+    document.title = g.title + ' — Cocktail Cabinet';
+    showRoles();
   }
 
-  /* ---------------- runner control ---------------- */
-  function stopRunner() {
-    if (runner) runner.destroy();
-    runner = null;
-  }
-
+  /* ================= runners ================= */
+  function stopRunner() { if (runner) runner.destroy(); runner = null; }
   function startDemo() {
     stopRunner();
-    demo = true;
-    const cpuRoles = {};
-    current.sides.forEach(s => (cpuRoles[s.key] = 'cpu'));
-    const r = (runner = new Arcade.Runner(canvas, current, cpuRoles, {
-      onEnd: () => setTimeout(() => { if (demo && r === runner) startDemo(); }, 1200)
+    demoMode = true;
+    const cpu = {};
+    current.sides.forEach(s => (cpu[s.key] = 'cpu'));
+    const r = (runner = new Arcade.Runner($('#screen'), current, cpu, {
+      onEnd: () => setTimeout(() => { if (demoMode && r === runner) startDemo(); }, 1500)
     }));
+    r.quiet = true;
   }
-
   function startGame() {
     stopRunner();
-    demo = false;
+    demoMode = false;
     store.set('roles:' + current.id, roles);
-    overlay.hidden = true;
-    $('#pauseBtn').disabled = false;
-    $('#restartBtn').disabled = false;
-    $('#pauseBtn').textContent = 'Pause';
-    renderSideInfo();
-    const r = (runner = new Arcade.Runner(canvas, current, Object.assign({}, roles), {
-      onEnd: res => r === runner && showResult(res),          // ignore results from a replaced game
+    hideOverlay();
+    Arcade.sfx('start');
+    const r = (runner = new Arcade.Runner($('#screen'), current, Object.assign({}, roles), {
+      onEnd: res => r === runner && showResult(res),
       onPause: p => r === runner && (p ? showPause() : hideOverlay())
     }));
-    canvas.focus && canvas.focus();
   }
 
-  /* ---------------- overlays ---------------- */
-  function hideOverlay() {
-    overlay.hidden = true;
-    $('#pauseBtn').textContent = 'Pause';
-  }
-
-  function setOverlay(kicker, title, html, withPickers, buttons) {
-    $('#ovKicker').textContent = kicker;
-    $('#ovTitle').textContent = title;
-    $('#ovText').innerHTML = html;
-    const pk = $('#sidePickers');
-    pk.innerHTML = '';
-    pk.hidden = !withPickers;
-    if (withPickers) buildPickers(pk);
-    const bb = $('#ovBtns');
-    bb.innerHTML = '';
-    for (const [label, fn, cls] of buttons) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'btn ' + (cls || '');
-      b.textContent = label;
-      b.addEventListener('click', fn);
-      bb.appendChild(b);
-    }
+  /* ================= overlays ================= */
+  function hideOverlay() { overlay.hidden = true; nav = null; }
+  function showOverlay(html, onKey) {
+    ovBox.innerHTML = html;
     overlay.hidden = false;
-    const first = bb.querySelector('.primary');
-    if (first) first.focus();
+    const items = [...ovBox.querySelectorAll('[data-nav]')];
+    nav = { items, i: Math.max(0, items.findIndex(x => x.dataset.default === '1')), onKey };
+    focusNav();
+  }
+  function focusNav() {
+    if (!nav) return;
+    nav.items.forEach((el, k) => el.setAttribute('data-focus', String(k === nav.i)));
   }
 
-  function showMenu() {
-    startDemo();                        // computers play in the background while you choose
-    $('#pauseBtn').disabled = true;
-    $('#restartBtn').disabled = true;
-    renderSideInfo();
-    setOverlay('Choose who plays', current.title, current.menuText || current.tagline, true,
-      [['Start', startGame, 'primary']]);
+  function showRoles() {
+    startDemo();                           // computers play behind the menu
+    const g = current;
+    const rows = g.sides.map(s => `
+      <div class="role" data-nav data-side="${s.key}">
+        <span class="rname">${esc(s.label)}</span>
+        <span class="toggle">
+          <button type="button" data-val="human" aria-pressed="${roles[s.key] === 'human'}">Human</button>
+          <button type="button" data-val="cpu" aria-pressed="${roles[s.key] === 'cpu'}">CPU</button>
+        </span>
+      </div>`).join('');
+    showOverlay(`
+      <p class="kick">Who's playing?</p>
+      <h2>${esc(g.title)}</h2>
+      <p>${g.menuText || esc(g.tagline)}</p>
+      <div class="roles">${rows}</div>
+      <div class="ov-actions">
+        <button class="pix-btn primary" type="button" data-nav data-act="start" data-default="1">Start</button>
+        <button class="pix-btn" type="button" data-nav data-act="menu">Game select</button>
+      </div>`, (k) => {
+      const it = nav.items[nav.i];
+      if ((k === 'ArrowLeft' || k === 'ArrowRight') && it.classList.contains('role')) {
+        const side = it.dataset.side;
+        roles[side] = roles[side] === 'human' ? 'cpu' : 'human';
+        renderRoleButtons();
+        Arcade.sfx('select');
+        return true;
+      }
+      return false;
+    });
+    ovBox.querySelectorAll('.role .toggle button').forEach(b => b.addEventListener('click', () => {
+      roles[b.closest('.role').dataset.side] = b.dataset.val;
+      renderRoleButtons();
+      Arcade.sfx('select');
+    }));
+    ovBox.querySelector('[data-act="start"]').addEventListener('click', startGame);
+    ovBox.querySelector('[data-act="menu"]').addEventListener('click', () => { location.hash = ''; });
+    $('#btnPause').disabled = true;
+  }
+  function renderRoleButtons() {
+    ovBox.querySelectorAll('.role').forEach(r => r.querySelectorAll('button').forEach(b =>
+      b.setAttribute('aria-pressed', String(roles[r.dataset.side] === b.dataset.val))));
   }
 
   function showPause() {
-    $('#pauseBtn').textContent = 'Resume';
-    setOverlay('Paused', current.title, 'Take a breath.', false, [
-      ['Resume', () => runner && runner.togglePause(false), 'primary'],
-      ['Restart', startGame],
-      ['Change players', () => { stopRunner(); showMenu(); }]
-    ]);
+    $('#btnPause').disabled = false;
+    showOverlay(`
+      <p class="kick">Paused</p>
+      <h2>${esc(current.title)}</h2>
+      <div class="ov-actions">
+        <button class="pix-btn primary" type="button" data-nav data-act="resume" data-default="1">Resume</button>
+        <button class="pix-btn" type="button" data-nav data-act="restart">Restart</button>
+        <button class="pix-btn" type="button" data-nav data-act="players">Change players</button>
+        <button class="pix-btn" type="button" data-nav data-act="menu">Game select</button>
+      </div>`);
+    ovBox.querySelector('[data-act="resume"]').addEventListener('click', () => runner && runner.togglePause(false));
+    ovBox.querySelector('[data-act="restart"]').addEventListener('click', startGame);
+    ovBox.querySelector('[data-act="players"]').addEventListener('click', () => { stopRunner(); showRoles(); });
+    ovBox.querySelector('[data-act="menu"]').addEventListener('click', () => { location.hash = ''; });
   }
 
   function showResult(res) {
-    const side = current.sides.find(s => s.key === res.winnerSide);
-    const who = roles[res.winnerSide] === 'human' ? 'Human' : 'Computer';
-    $('#pauseBtn').disabled = true;
-    setOverlay('Game over', `${side ? side.label : 'Nobody'} wins`,
-      `<b>${who}</b> took it. ${escapeHtml(res.detail || '')}`, false, [
-        ['Play again', startGame, 'primary'],
-        ['Swap sides', () => { swapSides(); startGame(); }],
-        ['Change players', () => { stopRunner(); showMenu(); }]
-      ]);
+    const g = current;
+    const side = g.sides.find(s => s.key === res.winnerSide);
+    const humanWon = roles[res.winnerSide] === 'human';
+    const anyHuman = Object.values(roles).includes('human');
+    Arcade.sfx(anyHuman ? (humanWon ? 'win' : 'lose') : 'win');
+    const score = runner && runner.game.score ? Math.round(runner.game.score()) : 0;
+    const scoringHuman = roles[g.scoreSide] === 'human';
+    const qualifies = scoringHuman && Arcade.scores.qualifies(g.id, score);
+    const medal = runner && runner.game.medal ? runner.game.medal() : null;
+    const endTitle = (runner && runner.game.endTitle && runner.game.endTitle(res)) || 'Game over';
+    const medalHtml = medal ? `<div class="medal" style="background:${medal.color}">${esc(medal.name)}</div>` : '';
+    const scoreLine = g.scoreSide ? `<p>${esc(g.sides.find(s => s.key === g.scoreSide).label)} ${esc(g.scoreName)}: <b>${score}</b></p>` : '';
+    const who = `<p class="who">${esc(side ? side.label : 'Nobody')} wins · ${humanWon ? 'human' : 'CPU'}</p>`;
+    if (qualifies) return enterInitials(g, score, endTitle, who, res, medalHtml);
+    showOverlay(`
+      <p class="kick">${esc(endTitle)}</p>
+      <h2>${esc(side ? side.label : 'Nobody')} wins</h2>
+      <p class="who">${humanWon ? 'Human' : 'CPU'} player</p>
+      <p>${esc(res.detail || '')}</p>
+      ${medalHtml}${scoreLine}
+      <div class="scores" id="ovScores"></div>
+      <div class="ov-actions">
+        <button class="pix-btn primary" type="button" data-nav data-act="again" data-default="1">Play again</button>
+        <button class="pix-btn" type="button" data-nav data-act="swap">Swap sides</button>
+        <button class="pix-btn" type="button" data-nav data-act="players">Change players</button>
+        <button class="pix-btn" type="button" data-nav data-act="menu">Game select</button>
+      </div>`);
+    renderScores(ovBox.querySelector('#ovScores'), g);
+    wireResultButtons();
+  }
+  function wireResultButtons() {
+    ovBox.querySelector('[data-act="again"]').addEventListener('click', startGame);
+    ovBox.querySelector('[data-act="swap"]').addEventListener('click', () => {
+      const [a, b] = current.sides.map(s => s.key);
+      [roles[a], roles[b]] = [roles[b], roles[a]];
+      startGame();
+    });
+    ovBox.querySelector('[data-act="players"]').addEventListener('click', () => { stopRunner(); showRoles(); });
+    ovBox.querySelector('[data-act="menu"]').addEventListener('click', () => { location.hash = ''; });
   }
 
-  function swapSides() {
-    const [a, b] = current.sides.map(s => s.key);
-    [roles[a], roles[b]] = [roles[b], roles[a]];
-  }
-
-  function buildPickers(root) {
-    for (const s of current.sides) {
-      const row = document.createElement('div');
-      row.className = 'picker';
-      const name = document.createElement('span');
-      name.textContent = s.label;
-      const seg = document.createElement('div');
-      seg.className = 'seg';
-      seg.setAttribute('role', 'group');
-      seg.setAttribute('aria-label', s.label + ' is played by');
-      for (const [val, label] of [['human', 'Human'], ['cpu', 'Computer']]) {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.textContent = label;
-        b.setAttribute('aria-pressed', String(roles[s.key] === val));
-        b.addEventListener('click', () => {
-          roles[s.key] = val;
-          seg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
-          renderSideInfo();
-        });
-        seg.appendChild(b);
+  // arcade-style initials: ↑↓ change the letter, ←→ move, or just type; Enter saves
+  function enterInitials(g, score, endTitle, who, res, medalHtml) {
+    const letters = (store.get('arcade:lastInitials') || 'AAA').split('');
+    let slot = 0;
+    const draw = () => {
+      ovBox.querySelector('.initials').innerHTML = letters.map((c, i) => `<span data-on="${i === slot}">${esc(c)}</span>`).join('');
+    };
+    showOverlay(`
+      <p class="kick">${esc(endTitle)}</p>
+      <h2>New high score!</h2>
+      ${who}
+      ${medalHtml}
+      <p>${esc(g.scoreName)}: <b>${score}</b></p>
+      <p>Enter your initials</p>
+      <div class="initials"></div>
+      <div class="ov-actions"><button class="pix-btn primary" type="button" data-nav data-act="save" data-default="1">Save</button></div>`, k => {
+      const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ';
+      if (k === 'ArrowUp' || k === 'ArrowDown') {
+        const i = A.indexOf(letters[slot]);
+        letters[slot] = A[(i + (k === 'ArrowUp' ? 1 : -1) + A.length) % A.length];
+        draw(); Arcade.sfx('select'); return true;
       }
-      row.append(name, seg);
-      root.appendChild(row);
-    }
+      if (k === 'ArrowLeft') { slot = Math.max(0, slot - 1); draw(); return true; }
+      if (k === 'ArrowRight') { slot = Math.min(2, slot + 1); draw(); return true; }
+      if (/^[A-Za-z0-9]$/.test(k)) { letters[slot] = k.toUpperCase(); slot = Math.min(2, slot + 1); draw(); Arcade.sfx('select'); return true; }
+      if (k === 'Backspace') { slot = Math.max(0, slot - 1); return true; }
+      return false;
+    });
+    draw();
+    ovBox.querySelector('[data-act="save"]').addEventListener('click', () => {
+      const name = letters.join('');
+      store.set('arcade:lastInitials', name);
+      const table = Arcade.scores.add(g.id, name, score);
+      const rank = table.findIndex(r => r.name === name.toUpperCase().slice(0, 3) && r.score === score);
+      Arcade.sfx('coin');
+      showOverlay(`
+        <p class="kick">${esc(endTitle)}</p>
+        <h2>Hall of fame</h2>
+        <div class="scores" id="ovScores"></div>
+        <div class="ov-actions">
+          <button class="pix-btn primary" type="button" data-nav data-act="again" data-default="1">Play again</button>
+          <button class="pix-btn" type="button" data-nav data-act="swap">Swap sides</button>
+          <button class="pix-btn" type="button" data-nav data-act="players">Change players</button>
+          <button class="pix-btn" type="button" data-nav data-act="menu">Game select</button>
+        </div>`);
+      renderScores(ovBox.querySelector('#ovScores'), g, rank);
+      wireResultButtons();
+    });
   }
 
-  function renderSideInfo() {
-    const box = $('#sideInfo');
-    box.innerHTML = '';
-    for (const s of current.sides) {
-      const d = document.createElement('div');
-      d.className = 'side';
-      const isH = roles[s.key] === 'human';
-      d.innerHTML = `<b></b><small></small>`;
-      d.querySelector('b').textContent = s.label;
-      const tag = document.createElement('span');
-      tag.className = 'who ' + (isH ? 'human' : 'cpu');
-      tag.textContent = isH ? 'Human' : 'Computer';
-      d.querySelector('b').appendChild(tag);
-      d.querySelector('small').textContent = isH ? s.human : s.cpu;
-      box.appendChild(d);
-    }
-  }
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
-
-  /* ---------------- buttons & keys ---------------- */
-  // go back to the cabinet without leaving a bare "#" at the end of the address
-  $('#backBtn').addEventListener('click', () => {
-    history.pushState(null, '', location.pathname + location.search);
-    route();
-  });
-  $('#pauseBtn').addEventListener('click', () => runner && !demo && runner.togglePause());
-  $('#restartBtn').addEventListener('click', () => current && startGame());
+  /* ================= keyboard ================= */
   window.addEventListener('keydown', e => {
-    if (stage.hidden || !current) return;
-    if (e.code === 'KeyR' && !demo && runner && !runner.paused) startGame();
-    if (e.code === 'Enter' && !overlay.hidden) {
-      const p = $('#ovBtns .primary');
-      if (p && document.activeElement !== p) { e.preventDefault(); p.click(); }
+    if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+    if (e.code === 'KeyM' && !(nav && nav.onKey && /^[A-Za-z]$/.test(e.key) && ovBox.querySelector('.initials'))) { toggleSound(); return; }
+    if (mode === 'select') {
+      if (e.key === 'ArrowDown' || e.key === 's') { e.preventDefault(); choose(sel + 1); }
+      else if (e.key === 'ArrowUp' || e.key === 'w') { e.preventDefault(); choose(sel - 1); }
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startSelected(); }
+      else if (/^[1-7]$/.test(e.key)) { choose(+e.key - 1); }
+      return;
     }
+    // overlays
+    if (!overlay.hidden && nav) {
+      if (nav.onKey && nav.onKey(e.key)) { e.preventDefault(); return; }
+      if (e.key === 'ArrowDown' || (e.key === 'ArrowRight' && !nav.items[nav.i].classList.contains('role')) || e.key === 'Tab') {
+        e.preventDefault(); nav.i = (nav.i + 1) % nav.items.length; focusNav(); Arcade.sfx('select'); return;
+      }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); nav.i = (nav.i - 1 + nav.items.length) % nav.items.length; focusNav(); Arcade.sfx('select'); return; }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const it = nav.items[nav.i];
+        if (it.classList.contains('role')) { nav.i = nav.items.findIndex(x => x.dataset.act === 'start'); focusNav(); return; }
+        it.click(); return;
+      }
+      if (e.key === 'Escape' && ovBox.querySelector('[data-act="menu"]') && !ovBox.querySelector('[data-act="resume"]')) { location.hash = ''; return; }
+      return;
+    }
+    if (e.key === 'Escape' && demoMode) { location.hash = ''; }
   });
-  window.addEventListener('hashchange', route);
 
-  buildGrid();
+  /* ================= deck buttons ================= */
+  $('#btnBack').addEventListener('click', () => {
+    if (mode === 'play' && runner && !demoMode && !runner.over && overlay.hidden) { runner.togglePause(true); return; }
+    location.hash = '';
+  });
+  $('#btnStart').addEventListener('click', () => {
+    if (mode === 'select') return startSelected();
+    const p = ovBox.querySelector('.pix-btn.primary');
+    if (!overlay.hidden && p) p.click();
+  });
+  $('#btnPause').addEventListener('click', () => runner && !demoMode && runner.togglePause());
+  $('#btnSound').addEventListener('click', toggleSound);
+  $('#pressStart').addEventListener('click', startSelected);
+
+  // attract mode: after a while with no input, move on to the next game's demo
+  window.addEventListener('pointermove', () => (idle = 0));
+  window.addEventListener('keydown', () => (idle = 0));
+  idleTimer = setInterval(() => {
+    if (mode !== 'select' || document.hidden) return;
+    idle += 1;
+    if (idle >= 22) choose(sel + 1);
+  }, 1000);
+
+  window.addEventListener('hashchange', route);
+  buildList();
   if (location.href.endsWith('#')) history.replaceState(null, '', location.pathname + location.search);
-  window.addEventListener('popstate', route);
   route();
 
   // exposed for the automated tests in /tests
