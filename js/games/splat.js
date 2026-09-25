@@ -69,7 +69,7 @@
       const clampGap = g => U.clamp(g, Math.max(gapMin(), lastGap - maxDelta()), Math.min(gapMax(), lastGap + maxDelta()));
 
       /* ---------- computer builder ---------- */
-      const builderSkill = () => Math.min(0.85, 0.15 + passed * 0.03);
+      const builderSkill = () => Math.min(0.6, 0.1 + passed * 0.02);
       function cpuBuild() {
         const lo = Math.max(gapMin(), lastGap - maxDelta()), hi = Math.min(gapMax(), lastGap + maxDelta());
         if (U.chance(builderSkill())) {
@@ -107,7 +107,7 @@
       }
 
       /* ---------- computer flier ---------- */
-      const flierSkill = () => U.clamp(0.3 + passed * 0.018, 0.3, 0.82);
+      const flierSkill = () => U.clamp(0.22 + passed * 0.016, 0.22, 0.7);
       let decideIn = 0;
       let aimNoise = 0, aimFor = null;
 

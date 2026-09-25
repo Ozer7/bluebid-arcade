@@ -250,7 +250,11 @@
   }
 
   /* ---------------- buttons & keys ---------------- */
-  $('#backBtn').addEventListener('click', () => { location.hash = ''; });
+  // go back to the cabinet without leaving a bare "#" at the end of the address
+  $('#backBtn').addEventListener('click', () => {
+    history.pushState(null, '', location.pathname + location.search);
+    route();
+  });
   $('#pauseBtn').addEventListener('click', () => runner && !demo && runner.togglePause());
   $('#restartBtn').addEventListener('click', () => current && startGame());
   window.addEventListener('keydown', e => {
@@ -264,6 +268,8 @@
   window.addEventListener('hashchange', route);
 
   buildGrid();
+  if (location.href.endsWith('#')) history.replaceState(null, '', location.pathname + location.search);
+  window.addEventListener('popstate', route);
   route();
 
   // exposed for the automated tests in /tests

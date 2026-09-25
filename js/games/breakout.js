@@ -98,7 +98,7 @@
       let mouseActive = false;
 
       /* ---------- computer paddle ---------- */
-      const skill = () => U.clamp(0.4 + (level - 1) * 0.11 + levelTimer / 200, 0.4, 0.94);
+      const skill = () => U.clamp(0.32 + (level - 1) * 0.08 + levelTimer / 300, 0.32, 0.78);
 
       // Where will this ball cross the line y = lineY? Simulates wall bounces
       // and the brick band (as a solid block where bricks remain).
@@ -124,7 +124,7 @@
         p.think -= dt;
         if (p.think > 0) return;
         const s = skill();
-        p.think = U.lerp(0.22, 0.05, s);            // reaction time
+        p.think = U.lerp(0.26, 0.07, s);            // reaction time
         const lineY = p.key === 'bottom' ? p.y - PH / 2 - BALL_R : p.y + PH / 2 + BALL_R;
         // most urgent ball heading our way
         let best = null, bestT = Infinity;
@@ -136,7 +136,7 @@
         }
         if (best) {
           const px = predictX(best, lineY);
-          const err = U.gauss() * U.lerp(55, 10, s);
+          const err = U.gauss() * U.lerp(58, 14, s);
           // aim: hit the ball off-centre to steer it toward the opponent's side / open gaps
           const opp = other(p.key);
           const wantLeft = opp.x > W / 2;

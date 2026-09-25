@@ -61,15 +61,16 @@ python3 -m http.server 8765 &       # then:
 node tests/browser.mjs http://localhost:8765/ /tmp   # plays every game in 3 role combos, screenshots, console errors
 ```
 
-Balance results (40–60 computer-vs-computer games each):
+Balance results after easing the computer players (30–40 computer-vs-computer games each):
 
 | Game | Result | Typical length |
 |---|---|---|
-| Snake | snake 42% / apples 58% | ~1:45 |
-| Splat | flier 62% / builder 38% | deaths spread across all levels |
-| Asteroids | pilot 32% / thrower 68% | ~1:45 |
-| Missile Command | defender 65% / attacker 35% | often down to one city |
-| Stack & Deal | stacker 70% / dealer 30% | ~1:30 |
+| Snake | snake 50% / apples 50% | ~1:40 |
+| Breakout | blue 40% / orange 60% | ~1:00 |
+| Splat | flier 33% / builder 67% | deaths spread across levels |
+| Asteroids | pilot 50% / thrower 50% | ~2:00 |
+| Missile Command | defender 33% / attacker 67% | often down to the last city in wave 7 |
+| Stack & Deal | stacker 43% / dealer 57% | ~2:10 |
 
 ## Deploying (GitHub → Netlify → games.bluebid.online)
 

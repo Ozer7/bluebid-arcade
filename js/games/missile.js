@@ -114,7 +114,7 @@
       /* ---------- computer defender ---------- */
       let defCool = 0;
       const planned = [];     // {x,y,at} blasts the AI already committed to
-      const defSkill = () => Math.min(0.88, 0.32 + (wave - 1) * 0.1);
+      const defSkill = () => Math.min(0.88, 0.34 + (wave - 1) * 0.1);
       function cpuDefend(dt) {
         const s = defSkill();
         defCool -= dt;
@@ -149,11 +149,11 @@
           if (!best || T < best.T) best = { b, T, px, py };
         }
         if (!best) return;
-        const err = U.lerp(34, 6, s);
+        const err = U.lerp(34, 7, s);
         const ax = best.px + U.gauss() * err, ay = best.py + U.gauss() * err;
         if (fireAt(ax, ay, best.b.i)) {
           planned.push({ x: ax, y: ay, at: now + best.T });
-          defCool = U.lerp(0.6, 0.17, s) + U.rand(0, 0.18);
+          defCool = U.lerp(0.6, 0.18, s) + U.rand(0, 0.18);
         }
       }
       // will this missile fly into a blast that's already on its way?
@@ -172,7 +172,7 @@
 
       /* ---------- computer attacker ---------- */
       let atkCool = 1.2;
-      const atkSkill = () => Math.min(0.9, 0.2 + (wave - 1) * 0.13);
+      const atkSkill = () => Math.min(0.7, 0.1 + (wave - 1) * 0.1);
       function cpuAttack(dt) {
         atkCool -= dt;
         if (atkCool > 0 || budget <= 0 || reload > 0 || missiles.length >= maxInFlight()) return;

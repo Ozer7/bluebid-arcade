@@ -127,8 +127,8 @@
     },
 
     create(api) {
-      const skillSnake = () => Math.min(0.97, 0.45 + eaten * 0.018);   // computer snake gets sharper
-      const skillApple = () => Math.min(0.9, 0.12 + eaten * 0.03);     // computer placer gets nastier
+      const skillSnake = () => Math.min(0.8, 0.2 + eaten * 0.02);    // computer snake gets sharper
+      const skillApple = () => Math.min(0.6, 0.08 + eaten * 0.02);     // computer placer gets nastier
       const stepTime = () => Math.max(0.07, 0.15 - eaten * 0.0027);
       const growPerApple = () => 1 + Math.floor(eaten / 10);
       const placeWindow = () => Math.max(1.8, 3.2 - eaten * 0.05);
@@ -215,6 +215,16 @@
       function cpuSteer() {
         const s = skillSnake();
         const head = snake[0];
+        // a sloppy snake sometimes just heads straight for the apple (only dodging
+        // instant death) — that's how it walks into traps
+        if (apple && U.chance((1 - s) * 0.45)) {
+          const opts = DIRS.filter(d => !(d.x === -dir.x && d.y === -dir.y) && inside(head.x + d.x, head.y + d.y) &&
+            !snake.some((b, i) => b.x === head.x + d.x && b.y === head.y + d.y && !(i === snake.length - 1 && grow === 0)));
+          if (opts.length) {
+            opts.sort((a, b) => (Math.abs(head.x + a.x - apple.x) + Math.abs(head.y + a.y - apple.y)) - (Math.abs(head.x + b.x - apple.x) + Math.abs(head.y + b.y - apple.y)));
+            return opts[0];
+          }
+        }
         let path = apple ? bfs(snake, grow, apple) : null;
         if (path && U.chance(s) && !safeAfter(snake, grow, path, growPerApple())) path = null;
         if (path) return { x: path[0].x - head.x, y: path[0].y - head.y };

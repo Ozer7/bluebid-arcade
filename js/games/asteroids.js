@@ -105,7 +105,7 @@
 
       /* ---------- computer thrower ---------- */
       let throwThink = 1.5;
-      const throwerSkill = () => Math.min(0.75, 0.15 + (wave - 1) * 0.17 + waveT / 150);
+      const throwerSkill = () => Math.min(0.6, 0.1 + (wave - 1) * 0.13 + waveT / 200);
       function cpuThrow(dt) {
         throwThink -= dt;
         if (throwThink > 0) return;
@@ -124,7 +124,7 @@
       }
 
       /* ---------- computer pilot ---------- */
-      const pilotSkill = () => U.clamp(0.3 + (wave - 1) * 0.13 + waveT / 200, 0.3, 0.9);
+      const pilotSkill = () => U.clamp(0.15 + (wave - 1) * 0.12 + waveT / 250, 0.15, 0.72);
       const ai = { think: 0, turn: 0, thrust: false, fire: false, aimErr: 0 };
 
       // time and distance of closest approach between ship and a rock (straight lines, wrap-aware)
@@ -140,8 +140,8 @@
         const s = pilotSkill();
         ai.think -= dt;
         if (ai.think <= 0) {
-          ai.think = U.lerp(0.2, 0.05, s);
-          ai.aimErr = U.gauss() * U.lerp(0.22, 0.03, s);
+          ai.think = U.lerp(0.28, 0.07, s);
+          ai.aimErr = U.gauss() * U.lerp(0.3, 0.05, s);
           decide(s);
         }
         return ai;

@@ -247,7 +247,7 @@
       }
 
       /* ---------- computer stacker ---------- */
-      const stackSkill = () => Math.min(0.8, 0.3 + lines * 0.018);
+      const stackSkill = () => Math.min(0.62, 0.15 + lines * 0.016);
       let plan = null, actT = 0, soft = false;
       function planMove() {
         const s = stackSkill();
@@ -268,7 +268,7 @@
       }
 
       /* ---------- computer dealer ---------- */
-      const dealSkill = () => Math.min(0.8, 0.1 + lines * 0.03);
+      const dealSkill = () => Math.min(0.55, 0.05 + lines * 0.02);
       function cpuDeal(dt) {
         if (next || !cur) return;
         dealerThink -= dt;
