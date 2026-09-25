@@ -472,7 +472,7 @@
         },
 
         score: () => score,
-        endTitle: () => (dead ? 'Game over' : 'Snake wins'),
+        endTitle: res => (res.winnerSide === 'snake' ? 'Snake wins' : 'Game over'),
         // for tests
         _state: () => ({ eaten, length: snake.length, dead })
       };

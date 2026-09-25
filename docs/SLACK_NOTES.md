@@ -10,4 +10,4 @@ Wave 1 cabinet is up at games.bluebid.online. Three challenges I ran into and ho
 
 4. **Making it feel like an arcade, not a web app.** Each game is drawn in its original's style (Nokia LCD, Atari cellophane Breakout, vector Asteroids, Game Boy Tetris) with the original scoring, and the menu works like an attract screen: live demos, high scores with initials, chip sounds.
 
-Imitation lives as a Claude artifact, per Yoni's answer above. Each search waits a random 7–18 seconds, so how fast you get matched doesn't tell you whether it's a person or Claude. Chats follow Human or Not's rules: one message each, 100 characters, 20 seconds a turn.
+Imitation lives as a Claude artifact, per Professor Robinson's answer above. Each search waits a random 7–18 seconds, so how fast you get matched doesn't tell you whether it's a person or Claude. Chats follow Human or Not's rules: one message each, 100 characters, 20 seconds a turn.
