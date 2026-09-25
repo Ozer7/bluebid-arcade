@@ -1,0 +1,99 @@
+/* BlueBid Arcade — cabinet styles (same palette as bluebid.online) */
+:root{
+  --bg:#0b1020; --bg-soft:#121a30; --card:#151e38; --card-hi:#1c2847;
+  --line:#26324f; --line-soft:#1e2842;
+  --text:#e9edf7; --muted:#98a4c0; --muted-dim:#6f7d9c;
+  --accent:#4f7cff; --accent-soft:#2a3f7a; --accent-glow:rgba(79,124,255,.28);
+  --good:#2fbf71; --bad:#f25c69; --warn:#f0a83c;
+  --radius:14px; --radius-lg:20px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  --pixel:"Silkscreen",ui-monospace,Menlo,Consolas,monospace;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.55;min-height:100vh;
+  background-image:radial-gradient(1200px 500px at 50% -120px,rgba(79,124,255,.16),transparent 70%)}
+[hidden]{display:none!important}
+button{font-family:inherit}
+
+/* ---------- cabinet ---------- */
+.view{max-width:1180px;margin:0 auto;padding:28px 16px 40px}
+.hero{text-align:center;padding:26px 0 30px}
+.brand{display:inline-block;font-family:var(--pixel);font-size:13px;color:var(--accent);text-decoration:none;
+  letter-spacing:.06em;border:1px solid var(--accent-soft);padding:4px 12px;border-radius:999px}
+.hero h1{font-family:var(--pixel);font-weight:700;font-size:clamp(30px,6vw,56px);line-height:1.05;margin:18px 0 12px;
+  letter-spacing:.01em;text-shadow:0 0 28px var(--accent-glow)}
+.lede{color:var(--muted);max-width:620px;margin:0 auto;font-size:17px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+.gamecard{display:flex;flex-direction:column;text-align:left;cursor:pointer;background:var(--card);
+  border:1px solid var(--line);border-radius:var(--radius-lg);padding:0;overflow:hidden;color:inherit;
+  transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;text-decoration:none}
+.gamecard:hover,.gamecard:focus-visible{transform:translateY(-3px);border-color:var(--accent);
+  box-shadow:0 12px 36px rgba(0,0,0,.35),0 0 0 3px var(--accent-glow);outline:none}
+.gamecard canvas{display:block;width:100%;aspect-ratio:4/3;background:#070b17;border-bottom:1px solid var(--line)}
+.gamecard .body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:6px;flex:1}
+.gamecard h3{margin:0;font-family:var(--pixel);font-size:19px;letter-spacing:.02em}
+.gamecard p{margin:0;color:var(--muted);font-size:14px}
+.gamecard .flip{margin-top:auto;padding-top:8px;font-size:12.5px;color:var(--muted-dim);font-family:var(--mono)}
+.gamecard .flip b{color:var(--warn);font-weight:600}
+.gamecard .tag{align-self:flex-start;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--accent);background:rgba(79,124,255,.12);padding:2px 8px;border-radius:999px}
+.foot{text-align:center;color:var(--muted-dim);font-size:13px;margin-top:36px}
+
+/* ---------- stage ---------- */
+.stagebar{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.stagebar h2{margin:0;flex:1;font-family:var(--pixel);font-size:24px}
+.stagebtns{display:flex;gap:8px}
+.btn{font-size:14px;font-weight:650;cursor:pointer;border-radius:11px;padding:9px 16px;border:1px solid var(--line);
+  background:var(--card);color:var(--text);transition:background .15s,border-color .15s}
+.btn:hover:not(:disabled){border-color:var(--accent);background:var(--card-hi)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:#6a90ff}
+.btn.ghost{background:transparent}
+
+.stagewrap{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:18px;align-items:start}
+.screen{position:relative;width:100%;aspect-ratio:4/3;border-radius:var(--radius-lg);overflow:hidden;
+  border:1px solid var(--line);background:#070b17;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.screen canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;
+  background:rgba(5,8,18,.72);backdrop-filter:blur(3px);overflow:auto}
+.overlay .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:22px 24px;
+  width:min(460px,100%);text-align:center;box-shadow:0 16px 50px rgba(0,0,0,.5)}
+.kicker{margin:0;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.overlay h3{margin:6px 0 6px;font-family:var(--pixel);font-size:26px}
+.ovtext{color:var(--muted);margin:0 0 14px;font-size:14.5px}
+.ovtext b{color:var(--text)}
+.pickers{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+.picker{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--bg-soft);
+  border:1px solid var(--line-soft);border-radius:12px;padding:8px 8px 8px 14px}
+.picker span{font-weight:650;font-size:14.5px}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.seg button{border:0;background:transparent;color:var(--muted);font-size:13px;font-weight:650;padding:6px 12px;
+  border-radius:7px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.ovbtns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+.info{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px 18px;font-size:14px}
+.info h4{margin:0 0 6px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.info p{margin:0 0 12px;color:var(--muted)}
+.side{border-top:1px solid var(--line-soft);padding:10px 0}
+.side b{display:block;font-size:14.5px;margin-bottom:2px}
+.side .who{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:1px 7px;border-radius:999px;margin-left:6px}
+.side .who.human{background:rgba(47,191,113,.14);color:var(--good)}
+.side .who.cpu{background:rgba(240,168,60,.14);color:var(--warn)}
+.side small{display:block;color:var(--muted);font-size:13px;line-height:1.45}
+.keys{font-family:var(--mono);font-size:12px!important;color:var(--muted-dim)!important;margin:6px 0 0!important}
+
+@media (max-width:900px){
+  .stagewrap{grid-template-columns:1fr}
+}
+@media (max-width:520px){
+  .picker{flex-direction:column;align-items:stretch;padding:8px}
+  .seg{justify-content:stretch}.seg button{flex:1}
+  .overlay .card{padding:16px}
+  .overlay h3{font-size:21px}
+}
