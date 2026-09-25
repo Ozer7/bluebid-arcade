@@ -441,6 +441,19 @@
   window.addEventListener('hashchange', route);
   buildList();
   if (location.href.endsWith('#')) history.replaceState(null, '', location.pathname + location.search);
+  // Fit the whole cabinet (marquee, screen, buttons) in the window height:
+  // the screen shrinks to whatever height is left over, keeping 4:3.
+  function fitScreen() {
+    const crt = $('#crt'), machine = $('#machine');
+    if (innerWidth <= 760) { document.documentElement.style.removeProperty('--crt-h'); return; }
+    document.documentElement.style.setProperty('--crt-h', '9999px');
+    const chrome = machine.getBoundingClientRect().height - crt.getBoundingClientRect().height;
+    const top = machine.getBoundingClientRect().top + scrollY;
+    document.documentElement.style.setProperty('--crt-h', Math.max(300, innerHeight - chrome - top - 10) + 'px');
+  }
+  addEventListener('resize', fitScreen);
+  fitScreen();
+  if (document.fonts) document.fonts.ready.then(fitScreen);
   route();
 
   // exposed for the automated tests in /tests
