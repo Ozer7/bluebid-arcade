@@ -65,6 +65,46 @@
     }
   });
 
+  /* ---------- human-behaviour model ----------
+     Every computer player is built on this so it plays like a person, not a
+     perfect algorithm with noise sprinkled on. Numbers come from reaction-time
+     research: a simple visual reaction averages ~250 ms (casual gamers ~230 ms,
+     typical range 200–300 ms); a choice between several things takes 350–500 ms.
+     People also have attention lapses, get sloppier under pressure, and aim
+     with scatter that grows with distance and speed. */
+  class Human {
+    constructor(o = {}) {
+      this.reaction = o.reaction ?? 0.25;      // mean simple reaction, seconds
+      this.spread = o.spread ?? 0.22;          // log-normal spread (reaction times are right-skewed)
+      this.lapseRate = o.lapseRate ?? 0.03;    // attention lapses per second
+      this.pressure = 0;                       // 0 calm … 1 panicking — set by the game
+    }
+    // one reaction time sample, in seconds (choice = several options to pick from)
+    react(choice = false) {
+      const mean = (choice ? this.reaction * 1.6 : this.reaction) * (1 + this.pressure * 0.35);
+      let t = mean * Math.exp(U.gauss() * this.spread - (this.spread * this.spread) / 2);
+      if (Math.random() < this.lapseRate * t * 4) t += U.rand(0.25, 0.7);     // "wasn't looking"
+      return U.clamp(t, 0.12, 1.6);
+    }
+    // aiming / placement scatter that grows under pressure
+    scatter(sd) { return U.gauss() * sd * (1 + this.pressure * 0.8); }
+    // is the player momentarily not paying attention?
+    lapsed(dt) { return Math.random() < this.lapseRate * dt; }
+  }
+  Arcade.Human = Human;
+
+  // A short memory of past states, so a computer player can act on what it
+  // saw a reaction-time ago instead of on the exact present.
+  class Lag {
+    constructor(seconds = 1) { this.buf = []; this.max = seconds; }
+    push(t, state) { this.buf.push({ t, state }); while (this.buf.length && t - this.buf[0].t > this.max) this.buf.shift(); }
+    at(t) {
+      for (let i = this.buf.length - 1; i >= 0; i--) if (this.buf[i].t <= t) return this.buf[i].state;
+      return this.buf.length ? this.buf[0].state : null;
+    }
+  }
+  Arcade.Lag = Lag;
+
   /* ---------- drawing helpers ---------- */
   const FONT = '"Silkscreen", ui-monospace, Menlo, Consolas, monospace';
   const BODY = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
@@ -139,10 +179,11 @@
         pointer: this.pointer,
         get time() { return self.time; },
         // winnerSide = one of the side keys; detail = sentence shown on the result card
-        end(winnerSide, detail) {
+        // `delay` lets a game finish its crash/death animation before the result card
+        end(winnerSide, detail, delay = 900) {
           if (self.over) return;
           self.over = { winnerSide, detail };
-          setTimeout(() => self.hooks.onEnd && self.hooks.onEnd(self.over), 900);
+          setTimeout(() => self.hooks.onEnd && self.hooks.onEnd(self.over), delay);
         },
         toast(msg, color) { self.toasts.push({ msg, color: color || Arcade.C.text, t: 1.6 }); }
       };

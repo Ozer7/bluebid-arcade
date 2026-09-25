@@ -42,16 +42,25 @@ Arcade.register({
 
 `api.isHuman(sideKey)` tells a game whether to read the keyboard or mouse for that side, or to run its computer player. Both paths call the same actions, like `flap()`, `launch()` and `hardDrop()`, so the computer is bound by the same physics, speed limits, ammo and cooldowns as a person.
 
-## Fairness and difficulty (how each computer player works)
+## How the computer plays: like a person
 
-- **Snake:** a breadth-first search that knows when each body segment will move out of the way, plus a check that the snake can still reach its tail after eating. The computer apple placer hunts for dead ends and traps. Rule for both placers: an apple must be reachable and at least 3 cells away, and the hunger timer is sized from the real path length.
-- **Breakout:** predicts where the ball will cross its line (wall and brick bounces included), adds aiming error, and angles its returns. Paddle speed is capped at the same value for mouse, keys and computer.
-- **Splat:** before each flap decision, the flier simulates "flap now" and "don't flap" about one second ahead using the real physics, and allows for its own reaction time. It only sees columns already on screen. A builder can't move a gap more than a set distance from the previous one, so every layout can be flown.
-- **Asteroids:** the pilot computes each rock's closest approach, tries escape manoeuvres in a quick simulation, and leads its shots. It has to rotate to aim. The thrower pays the same energy costs as a human.
-- **Missile Command:** the defender reacts after a delay, solves for the aim point so the blast meets the missile, and skips missiles that are already doomed. The attacker targets the least-defended cities and times salvos to arrive together.
-- **Stack & Deal:** the stacker scores every legal placement (height, holes, bumpiness, lines) and then actually steers the piece there one key press at a time. The dealer gives the worst-fitting piece, but can't deal the same piece three times in a row and must deal an I-piece at least every 12 pieces.
+Every computer player is built on a shared human-behaviour model (`Arcade.Human` in `engine.js`), not a perfect algorithm with noise added. It's grounded in reaction-time research:
 
-Every computer player has a skill value that starts low and rises as the game goes on (slower reactions, more aim error, and more mistakes early on). The game also speeds up level by level, so it starts easy and gets harder from whichever side you play.
+- about 250 ms to react to something new (casual gamers are around 230 ms)
+- 350–500 ms when there are several things to choose between
+- occasional attention lapses
+- aim that gets sloppier under pressure
+
+Game by game:
+
+- **Snake:** heads for the apple along an L-shaped route, turns a cell early when a wall is coming, hugs the edges once it's long, and avoids small pockets it can see. It turns a step late when the snake is fast, misjudges big enclosed areas, and takes risks when hungry. So it dies the way people do: boxed in by its own body, or clipping a wall at speed. The computer apple placer mostly drops apples "somewhere far away", and more and more often tucks them behind the body or in corners.
+- **Splat:** the flier watches the next gap and taps whenever the bird sinks too low. What it sees is slightly behind reality, and its taps carry timing scatter. It taps frantically when the next gap is far above and lets the bird fall too long when it's far below. Its eyes move to the next gap only after clearing the current pipe. When it crashes, the bird tumbles to the ground and splats. The computer builder drags its cursor like a mouse (you can watch the preview move) and mixes gentle gaps with zig-zags, staircases and the occasional mean switch.
+- **Breakout:** the paddle glances at the ball every fraction of a second and guesses where it will land (a straight line plus at most one wall bounce), refining the guess as the ball comes closer. It notices a brick bounce only a reaction-time later. It moves like a hand on a mouse: accelerates, overshoots slightly, settles.
+- **Asteroids:** the pilot notices each new rock after a delay, turns and fires in bursts, and only partly leads its shots. When a rock gets close it commits to one panic escape, and it's bad at braking. The thrower saves up and throws bursts at where the ship is, starting with big rocks.
+- **Missile Command:** the defender notices missiles late, has to move the mouse to each one (farther takes longer), usually aims not quite far enough ahead, fires again if a shot misses, and sometimes wastes shots. The attacker picks a city and hammers it, then switches.
+- **Stack & Deal:** the stacker places about one piece a second at a person's key-tapping pace (8–11 presses a second). It sometimes rotates the long way round and misdrops pieces one column off, more often under pressure. The dealer gives random pieces early and more "worst fit" pieces later.
+
+The computer players get a little sharper as each game goes on ("warming up"), and the games themselves speed up. So a game starts easy and gets harder whichever side you're on. Fairness rules still apply to both sides: apples must be reachable, gap moves are limited, the dealer can't repeat a piece three times in a row, and speeds and ammo are the same for everyone.
 
 ## Testing
 
@@ -61,16 +70,16 @@ python3 -m http.server 8765 &       # then:
 node tests/browser.mjs http://localhost:8765/ /tmp   # plays every game in 3 role combos, screenshots, console errors
 ```
 
-Balance results after easing the computer players (30–40 computer-vs-computer games each):
+Balance results with the human-like players (60–100 computer-vs-computer games each):
 
 | Game | Result | Typical length |
 |---|---|---|
-| Snake | snake 50% / apples 50% | ~1:40 |
-| Breakout | blue 40% / orange 60% | ~1:00 |
-| Splat | flier 33% / builder 67% | deaths spread across levels |
-| Asteroids | pilot 50% / thrower 50% | ~2:00 |
-| Missile Command | defender 33% / attacker 67% | often down to the last city in wave 7 |
-| Stack & Deal | stacker 43% / dealer 57% | ~2:10 |
+| Snake | snake 45% / apples 55% | ~1:30 |
+| Breakout | blue 50% / orange 50% | ~1:00 |
+| Splat | flier 20–25% / builder 75–80% | most runs reach column 20+ |
+| Asteroids | pilot 30–35% / thrower 65–70% | ~1:35 |
+| Missile Command | defender 40% / attacker 60% | often down to the last cities in wave 7 |
+| Stack & Deal | stacker 40% / dealer 60% | ~2:00 |
 
 ## Deploying (GitHub → Netlify → games.bluebid.online)
 

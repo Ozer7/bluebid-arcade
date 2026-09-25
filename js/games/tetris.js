@@ -163,7 +163,7 @@
       let dealerThink = 0.6;
       let das = { dir: 0, t: 0 };
 
-      const level = () => 1 + Math.floor(lines / 3);
+      const level = () => 1 + Math.floor(lines / 4);
       const gravity = () => Math.max(0.1, 0.8 * Math.pow(0.82, level() - 1));
       const sinceI = () => { let n = 0; for (let i = history.length - 1; i >= 0 && history[i] !== 'I'; i--) n++; return n; };
       function allowed(p) {
@@ -194,7 +194,7 @@
           if (!fits(board, cur.name, 0, cur.x, cur.y)) return topOut();
         }
         fallT = 0; lockT = 0; soft = false;
-        dealerThink = U.rand(0.35, 0.9);
+        dealerThink = dealer.react(true) + U.rand(0.2, 0.9);
         if (!api.isHuman('stacker')) planMove();
       }
 
@@ -246,45 +246,61 @@
         lock();
       }
 
-      /* ---------- computer stacker ---------- */
-      const stackSkill = () => Math.min(0.62, 0.15 + lines * 0.016);
+      /* ---------- computer stacker (plays like a person) ---------- */
+      // A casual player places roughly one piece a second: look at the piece,
+      // decide, then tap the keys at 8–11 presses a second. They pick a good
+      // spot but not always the best one, sometimes rotate the long way round,
+      // and "misdrop" a piece one column off — more often when the stack is high
+      // and the pieces are falling fast. Hard-dropping becomes a habit as they
+      // warm up.
+      const stackSkill = () => Math.min(0.88, 0.45 + lines * 0.016);
+      const sp = new Arcade.Human({ reaction: 0.3 });
       let plan = null, actT = 0, soft = false;
+      const stackHeight = () => { for (let y = 0; y < ROWS; y++) if (board[y].some(Boolean)) return ROWS - y; return 0; };
       function planMove() {
         const s = stackSkill();
-        const noise = U.lerp(0.45, 0.02, s);
-        plan = bestPlacement(board, cur.name, next, noise, s > 0.6);
-        actT = U.lerp(0.35, 0.08, s);                      // a beat to "look" at the piece
+        sp.pressure = U.clamp((stackHeight() - 8) / 10 + (0.35 - gravity()) * 1.2, 0, 1);
+        const noise = U.lerp(0.4, 0.08, s) * (1 + sp.pressure);
+        plan = bestPlacement(board, cur.name, next, noise, U.chance(s * 0.4));
+        if (!plan) return;
+        // misdrop: one column off
+        if (U.chance(0.03 + sp.pressure * 0.09)) {
+          const dx = U.pick([-1, 1]);
+          if (fits(board, cur.name, plan.rot, plan.x + dx, SPAWN_Y) || fits(board, cur.name, plan.rot, plan.x + dx, SPAWN_Y - 1)) plan.x += dx;
+        }
+        // usually rotates the short way; sometimes the long way (three turns instead of one)
+        plan.rotDir = plan.rot === 3 && U.chance(0.6 + s * 0.35) ? -1 : 1;
+        // look at the piece and decide; rushed when things are tense
+        actT = U.clamp(sp.react(true) + U.rand(0.1, 0.6) * (1 - s * 0.6) * (1 - sp.pressure * 0.7), 0.15, 1.4);
+        plan.hard = U.chance(0.45 + s * 0.5);
       }
       function cpuStack(dt) {
         if (!cur || !plan) return;
         actT -= dt;
         if (actT > 0) return;
-        const s = stackSkill();
-        actT = U.lerp(0.17, 0.04, s) * U.rand(0.8, 1.25);   // one key press per tick
-        if (cur.rot !== plan.rot) { if (!rotate(1)) plan.rot = cur.rot; return; }
+        actT = U.rand(0.085, 0.13) * (1 - sp.pressure * 0.25);   // a person's key-tapping pace
+        if (cur.rot !== plan.rot) { if (!rotate(plan.rotDir || 1)) plan.rot = cur.rot; return; }
         if (cur.x < plan.x) { if (!tryMove(1, 0)) plan.x = cur.x; return; }
         if (cur.x > plan.x) { if (!tryMove(-1, 0)) plan.x = cur.x; return; }
-        if (s > 0.55) hardDrop(); else soft = true;
+        if (plan.hard) hardDrop(); else soft = true;
       }
 
-      /* ---------- computer dealer ---------- */
-      const dealSkill = () => Math.min(0.55, 0.05 + lines * 0.02);
+      /* ---------- computer dealer (plays like a person) ---------- */
+      // Deals whatever comes to mind at first; as the game goes on it looks at
+      // the board and deals the piece that fits worst more and more often.
+      const dealSkill = () => Math.min(0.6, 0.05 + lines * 0.02);
+      const dealer = new Arcade.Human({ reaction: 0.3 });
       function cpuDeal(dt) {
         if (next || !cur) return;
         dealerThink -= dt;
         if (dealerThink > 0) return;
         const opts = allowedList();
         if (!U.chance(dealSkill())) return void deal(U.pick(opts));
-        // assume the current piece lands in its best spot, then give the piece whose best spot is worst
         const cp = bestPlacement(board, cur.name, null, 0, false);
         const after = cp ? placeOn(board, cur.name, cp.rot, cp.x, cp.y).board : board;
-        let worst = null;
-        for (const p of opts) {
-          const b = bestPlacement(after, p, null, 0, false);
-          const sc = b ? b.score : -1e6;
-          if (!worst || sc < worst.sc) worst = { p, sc };
-        }
-        deal(worst.p);
+        const ranked = opts.map(p => { const b = bestPlacement(after, p, null, 0, false); return { p, sc: b ? b.score : -1e6 }; })
+          .sort((a, b) => a.sc - b.sc);
+        deal(ranked[U.chance(0.7) ? 0 : Math.min(1, ranked.length - 1)].p);     // the worst, or close to it
       }
 
       spawn();

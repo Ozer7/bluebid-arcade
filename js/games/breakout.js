@@ -97,55 +97,60 @@
       }
       let mouseActive = false;
 
-      /* ---------- computer paddle ---------- */
-      const skill = () => U.clamp(0.32 + (level - 1) * 0.08 + levelTimer / 300, 0.32, 0.78);
+      /* ---------- computer paddle (plays like a person) ---------- */
+      // People don't simulate bounces. They glance at the ball every fraction of
+      // a second, guess where it will come down (straight line, maybe one wall
+      // bounce), and refine that guess as it gets closer — so the paddle starts
+      // roughly right and makes a late correction. A bounce off a brick is only
+      // noticed a reaction-time later. The hand moves like a hand on a mouse:
+      // accelerates, overshoots a little, settles, never perfectly still.
+      const skill = () => U.clamp(0.35 + (level - 1) * 0.08 + levelTimer / 300, 0.35, 0.8);
+      for (const k in players) Object.assign(players[k], { person: new Arcade.Human({ reaction: 0.23 }), look: 0, pv: 0, ballDir: {} });
 
-      // Where will this ball cross the line y = lineY? Simulates wall bounces
-      // and the brick band (as a solid block where bricks remain).
-      function predictX(b, lineY) {
-        let x = b.x, y = b.y, vx = b.vx, vy = b.vy;
-        if ((lineY - y) * vy <= 0) return null;    // moving away
-        const dt = 1 / 120;
-        for (let i = 0; i < 600; i++) {
-          x += vx * dt; y += vy * dt;
-          if (x < BALL_R) { x = BALL_R; vx = Math.abs(vx); }
-          if (x > W - BALL_R) { x = W - BALL_R; vx = -Math.abs(vx); }
-          if (y > BR_TOP - BALL_R && y < BR_TOP + BR_ROWS * BR_H + BALL_R) {
-            const col = U.clamp(Math.floor(x / BR_W), 0, BR_COLS - 1);
-            if (bricks.some(br => br.alive && Math.abs(br.x + br.w / 2 - (col + 0.5) * BR_W) < 2 &&
-                y > br.y - BALL_R && y < br.y + br.h + BALL_R)) vy = -vy;
-          }
-          if ((vy > 0 && y >= lineY) || (vy < 0 && y <= lineY)) return x;
-        }
-        return x;
+      // the naive human guess: straight line, reflected off the side walls at most once
+      function guessX(b, lineY) {
+        const t = (lineY - b.y) / b.vy;
+        if (t <= 0) return null;
+        let x = b.x + b.vx * t;
+        if (x < BALL_R) x = 2 * BALL_R - x;
+        else if (x > W - BALL_R) x = 2 * (W - BALL_R) - x;
+        return { x: U.clamp(x, BALL_R, W - BALL_R), t };
       }
 
       function cpuThink(p, dt) {
-        p.think -= dt;
-        if (p.think > 0) return;
         const s = skill();
-        p.think = U.lerp(0.26, 0.07, s);            // reaction time
         const lineY = p.key === 'bottom' ? p.y - PH / 2 - BALL_R : p.y + PH / 2 + BALL_R;
-        // most urgent ball heading our way
-        let best = null, bestT = Infinity;
+        // notice direction changes (brick bounces) only after a reaction time
         for (const b of balls) {
-          if (b.stuck) continue;
-          if ((lineY - b.y) * b.vy <= 0) continue;
-          const t = (lineY - b.y) / b.vy;
-          if (t < bestT) { bestT = t; best = b; }
+          const d = Math.sign(b.vy);
+          const seen = p.ballDir[balls.indexOf(b)];
+          if (seen && seen.d !== d && !seen.pending) { seen.pending = api.time + p.person.react(); }
+          if (!seen) p.ballDir[balls.indexOf(b)] = { d };
+          else if (seen.pending && api.time >= seen.pending) { seen.d = d; seen.pending = 0; p.look = 0; }
         }
+        p.look -= dt;
+        if (p.look > 0) return;
+        p.look = U.rand(0.12, 0.28);                    // how often they re-read the ball
+        let best = null;
+        balls.forEach((b, i) => {
+          if (b.stuck) return;
+          const believedDown = p.ballDir[i] ? p.ballDir[i].d : Math.sign(b.vy);
+          const coming = p.key === 'bottom' ? believedDown > 0 : believedDown < 0;
+          if (!coming || Math.sign(b.vy) !== believedDown) return;
+          const g = guessX(b, lineY);
+          if (g && (!best || g.t < best.t)) best = g;
+        });
         if (best) {
-          const px = predictX(best, lineY);
-          const err = U.gauss() * U.lerp(58, 14, s);
-          // aim: hit the ball off-centre to steer it toward the opponent's side / open gaps
-          const opp = other(p.key);
-          const wantLeft = opp.x > W / 2;
-          const aim = (wantLeft ? 1 : -1) * U.lerp(0, PW * 0.32, s) * (U.chance(0.6) ? 1 : -0.4);
-          p.target = U.clamp(px + err + aim, PW / 2, W - PW / 2);
+          // the further away the ball, the rougher the guess
+          const sd = (8 + best.t * 55) * U.lerp(1.1, 0.5, s);
+          let target = best.x + p.person.scatter(sd);
+          // good players sometimes angle the ball on purpose
+          if (U.chance(s * 0.35)) target += U.pick([-1, 1]) * PW * U.rand(0.15, 0.35);
+          p.target = U.clamp(target, PW / 2, W - PW / 2);
         } else {
-          // nothing incoming: drift back toward the middle, loosely following play
+          // nothing coming: drift with the ball loosely, like following it with your eyes
           const any = balls.find(b => !b.stuck);
-          p.target = any ? U.lerp(W / 2, any.x, 0.4) : W / 2;
+          p.target = U.clamp(any ? U.lerp(W / 2, any.x, 0.5) : W / 2, PW / 2, W - PW / 2);
         }
       }
 
@@ -158,7 +163,10 @@
           else if (c.mouse && mouseActive) desired = api.pointer.x;
         } else {
           cpuThink(p, dt);
-          desired = p.target;
+          // hand dynamics: a springy pull toward the target with slight overshoot and tremor
+          const acc = (p.target - p.x) * 90 - p.pv * 14;
+          p.pv = U.clamp(p.pv + acc * dt, -PADDLE_MAX_SPEED, PADDLE_MAX_SPEED);
+          desired = p.x + p.pv * dt + U.gauss() * 0.4;
         }
         const maxStep = PADDLE_MAX_SPEED * dt;
         const nx = U.clamp(p.x + U.clamp(desired - p.x, -maxStep, maxStep), PW / 2, W - PW / 2);
@@ -234,7 +242,7 @@
               stickTo(b);
               b.serveT -= dt;
               // computer serves quickly; humans get 3 seconds before an automatic serve
-              const limit = api.isHuman(b.server) ? -2 : -U.rand(0, 0.4);
+              const limit = api.isHuman(b.server) ? -2 : -U.rand(0.1, 0.9);
               if (b.serveT < limit) serve(b);
               continue;
             }

@@ -127,25 +127,30 @@
     },
 
     create(api) {
-      const skillSnake = () => Math.min(0.8, 0.2 + eaten * 0.02);    // computer snake gets sharper
-      const skillApple = () => Math.min(0.6, 0.08 + eaten * 0.02);     // computer placer gets nastier
+      // How much of the board the computer snake "takes in" when judging whether a
+      // turn leads into a dead end. Small pockets are obvious; big traps are not —
+      // exactly the mistake real players make when their snake gets long.
+      const vision = () => Math.min(50, 12 + eaten * 1.4);
+      const meanness = () => Math.min(0.55, 0.1 + eaten * 0.02);      // computer placer gets craftier
       const stepTime = () => Math.max(0.07, 0.15 - eaten * 0.0027);
       const growPerApple = () => 1 + Math.floor(eaten / 10);
       const placeWindow = () => Math.max(1.8, 3.2 - eaten * 0.05);
 
       let snake = [{ x: 8, y: 11 }, { x: 7, y: 11 }, { x: 6, y: 11 }];
-      let dir = { x: 1, y: 0 };
+      let dir = DIRS[0];
       let queue = [];
       let grow = 0;
       let stepAcc = 0;
       let eaten = 0;
       let apple = null;
       let placeLeft = placeWindow();
-      let cpuThink = U.rand(0.4, 0.9);
+      let cpuThink = U.rand(0.6, 1.2);
       let hunger = 0, hungerMax = 1;
       let dead = null;
       let hover = null;
       let flash = 0;
+      let deathT = 0, bonk = null;                    // crash animation
+      const person = new Arcade.Human({ reaction: 0.26, lapseRate: 0.025 });
 
       /* ----- apple placement (shared validation) ----- */
       function validity(x, y) {
@@ -161,7 +166,7 @@
         apple = { x, y };
         const p = bfs(snake, grow, apple);
         const len = p ? p.length : Math.abs(snake[0].x - x) + Math.abs(snake[0].y - y);
-        hungerMax = hunger = stepTime() * (len * 1.5 + 14);
+        hungerMax = hunger = stepTime() * (len * 2 + 22);
         flash = 0.35;
       }
 
@@ -189,69 +194,100 @@
         if (c) place(c.x, c.y);
       }
 
-      // Computer apple placer: early on random; later it hunts for pockets
-      // and for spots that leave the snake unable to reach its tail.
+      // Computer apple placer, played the way a person plays it: mostly "somewhere
+      // far away", sometimes tucked against a wall or corner, and — more often as
+      // the game goes on — behind the snake's body so it has to go the long way round.
       function cpuPlace() {
         const cells = validCells();
         if (!cells.length) return randomPlace();
-        if (!U.chance(skillApple())) { const c = U.pick(cells); return place(c.x, c.y); }
-        const blockedN = (x, y) => DIRS.reduce((n, d) => {
-          const nx = x + d.x, ny = y + d.y;
+        const h = snake[0];
+        const man = c => Math.abs(c.x - h.x) + Math.abs(c.y - h.y);
+        const blockedN = c => DIRS.reduce((n, d) => {
+          const nx = c.x + d.x, ny = c.y + d.y;
           return n + (!inside(nx, ny) || snake.some(s => s.x === nx && s.y === ny) ? 1 : 0);
         }, 0);
-        const maxD = Math.max(...cells.map(c => c.d));
-        cells.forEach(c => (c.score = (c.d / maxD) * 10 + blockedN(c.x, c.y) * 5 + Math.random() * 4));
-        cells.sort((a, b) => b.score - a.score);
-        let best = cells[0];
-        // check the top candidates for a true trap (eating it leaves no way back to the tail)
-        for (const c of cells.slice(0, 30)) {
-          const path = bfs(snake, grow, c);
-          if (path && !safeAfter(snake, grow, path, growPerApple())) { best = c; break; }
-        }
-        place(best.x, best.y);
+        const r = Math.random(), m = meanness();
+        let pool;
+        if (r < m * 0.6) pool = cells.filter(c => c.d - man(c) >= 6);            // behind the body
+        else if (r < m) pool = cells.filter(c => blockedN(c) >= 2);             // tucked in a pocket or corner
+        else if (r < m + 0.25) pool = cells.filter(c => c.x < 2 || c.y < 2 || c.x > COLS - 3 || c.y > ROWS - 3);
+        else pool = cells.filter(c => man(c) >= 8);                            // just "far away"
+        if (!pool || !pool.length) pool = cells;
+        const c = U.pick(pool);
+        place(c.x, c.y);
       }
 
-      /* ----- computer snake ----- */
-      function cpuSteer() {
-        const s = skillSnake();
-        const head = snake[0];
-        // a sloppy snake sometimes just heads straight for the apple (only dodging
-        // instant death) — that's how it walks into traps
-        if (apple && U.chance((1 - s) * 0.45)) {
-          const opts = DIRS.filter(d => !(d.x === -dir.x && d.y === -dir.y) && inside(head.x + d.x, head.y + d.y) &&
-            !snake.some((b, i) => b.x === head.x + d.x && b.y === head.y + d.y && !(i === snake.length - 1 && grow === 0)));
-          if (opts.length) {
-            opts.sort((a, b) => (Math.abs(head.x + a.x - apple.x) + Math.abs(head.y + a.y - apple.y)) - (Math.abs(head.x + b.x - apple.x) + Math.abs(head.y + b.y - apple.y)));
-            return opts[0];
+      /* ----- computer snake: plays like a person ----- */
+      // What a player actually does: heads for the apple along an L-shaped route
+      // (few turns), turns a cell early when a wall or its body is coming up,
+      // hugs the edges once the snake is long, and avoids pockets it can see.
+      // What a player gets wrong: turns a step late when the snake is fast,
+      // occasionally isn't paying attention, and misjudges big enclosed areas —
+      // so it dies the way people die, by boxing itself in or clipping a wall.
+      const lateChance = () => U.clamp(0.1 + (0.15 / stepTime() - 1) * 0.2, 0.1, 0.34);
+
+      function occupiedAt(x, y) {
+        if (!inside(x, y)) return true;
+        return snake.some((b, i) => b.x === x && b.y === y && !(i === snake.length - 1 && grow === 0));
+      }
+      // flood fill that gives up after `cap` cells — the "how open does it look" glance
+      function glance(x, y, cap) {
+        const seen = new Set([x + ',' + y]);
+        const q = [[x, y]];
+        const body = new Set(snake.slice(0, -1).map(b => b.x + ',' + b.y));
+        for (let h = 0; h < q.length && seen.size < cap; h++) {
+          const [cx, cy] = q[h];
+          for (const d of DIRS) {
+            const nx = cx + d.x, ny = cy + d.y, k = nx + ',' + ny;
+            if (!inside(nx, ny) || seen.has(k) || body.has(k)) continue;
+            seen.add(k); q.push([nx, ny]);
           }
         }
-        let path = apple ? bfs(snake, grow, apple) : null;
-        if (path && U.chance(s) && !safeAfter(snake, grow, path, growPerApple())) path = null;
-        if (path) return { x: path[0].x - head.x, y: path[0].y - head.y };
-        return survivalMove();
+        return seen.size;
       }
 
-      // No safe path to the apple: keep alive by moving where there is the most room
-      // and the tail is still reachable (tail-chasing), preferring the long way round.
-      function survivalMove() {
+      function cpuSteer() {
         const head = snake[0];
-        let best = null, bestScore = -Infinity;
+        const len = snake.length + grow;
+        const straight = dir;
+        const cap = vision();
+        // walking distance to the apple around the body — players know the tail moves
+        // out of the way, so a spot sealed by the tail still counts as reachable
+        const routeLen = (body, g) => { const p = apple ? bfs(body, g, apple) : null; return p ? p.length : 999; };
+        const hereLen = routeLen(snake, grow);
+        let best = null;
         for (const d of DIRS) {
           if (d.x === -dir.x && d.y === -dir.y) continue;
           const nx = head.x + d.x, ny = head.y + d.y;
-          if (!inside(nx, ny)) continue;
-          const b = snake.slice();
-          b.unshift({ x: nx, y: ny });
-          let g = grow;
-          if (g > 0) g--; else b.pop();
-          const f = freeAfter(snake, grow);
-          if (f[idx(nx, ny)] > 1) continue;         // collides with body
-          const tailPath = bfs(b, g, b[b.length - 1]);
-          const area = floodArea(b, b[0]);
-          const score = (tailPath ? 2000 + tailPath.length * 3 : 0) + area + Math.random();
-          if (score > bestScore) { bestScore = score; best = d; }
+          if (occupiedAt(nx, ny)) continue;
+          let score = 0;
+          if (apple) {
+            const moved = [{ x: nx, y: ny }, ...snake];
+            let g2 = grow; if (g2 > 0) g2--; else moved.pop();
+            const before = hereLen, after = nx === apple.x && ny === apple.y ? 0 : routeLen(moved, g2);
+            const hurry = 1 + (1 - hunger / hungerMax) * 1.5;               // hungrier = more direct
+            score += (after < before ? 3 : -2) * hurry;
+          }
+          if (d === straight) score += 1.2;                                      // fewer turns
+          if (d === straight && occupiedAt(nx + d.x, ny + d.y)) score -= 2.5;     // turn a cell early
+          const room = glance(nx, ny, cap);
+          score += (room / cap) * 3;
+          // "that's a dead end" — but a hungry player takes the risk anyway
+          const caution = U.clamp((hunger / hungerMax - 0.15) / 0.4, 0, 1);
+          if (room < Math.min(len + 3, cap) && U.chance(0.6)) score -= 20 * caution;
+          if (len > 20 && hunger / hungerMax > 0.5) score += 0.5 * DIRS.reduce((n, e) => n + (occupiedAt(nx + e.x, ny + e.y) ? 1 : 0), 0);   // hug walls/body
+          score += U.gauss() * 0.7;
+          if (!best || score > best.score) best = { d, score };
         }
-        return best || dir;
+        if (!best) return dir;                                                   // nowhere to go
+        const turning = best.d !== dir;
+        const straightFatal = occupiedAt(head.x + dir.x, head.y + dir.y);
+        if (turning) {
+          // reacting a step late, or not paying attention for a moment
+          const late = lateChance() * (straightFatal ? 0.05 : 1);      // a wall right in your face is hard to miss
+          if (U.chance(late) || person.lapsed(stepTime()) && !straightFatal) return dir;
+        }
+        return best.d;
       }
 
       /* ----- the tick ----- */
@@ -265,7 +301,9 @@
         const hitsBody = snake.some((s, i) => s.x === head.x && s.y === head.y && !(i === snake.length - 1 && grow === 0));
         if (!inside(head.x, head.y) || hitsBody) {
           dead = 'crash';
-          return api.end('apples', `The snake crashed after eating ${eaten} apple${eaten === 1 ? '' : 's'}.`);
+          bonk = { x: dir.x, y: dir.y, wall: !inside(head.x, head.y) };
+          const what = bonk.wall ? 'hit the wall' : 'ran into itself';
+          return api.end('apples', `The snake ${what} after eating ${eaten} apple${eaten === 1 ? '' : 's'}.`, 1800);
         }
         snake.unshift(head);
         if (grow > 0) grow--; else snake.pop();
@@ -283,7 +321,8 @@
       return {
         update(dt) {
           if (flash > 0) flash -= dt;
-          if (dead || eaten >= TARGET) return;
+          if (dead) { deathT += dt; return; }
+          if (eaten >= TARGET) return;
           // apple placement phase runs alongside the snake
           if (!apple) {
             placeLeft -= dt;
@@ -298,7 +337,7 @@
             hunger -= dt;
             if (hunger <= 0) {
               dead = 'starved';
-              return api.end('apples', `The snake starved after ${eaten} apple${eaten === 1 ? '' : 's'}.`);
+              return api.end('apples', `The snake starved after ${eaten} apple${eaten === 1 ? '' : 's'}.`, 1800);
             }
           }
           stepAcc += dt;
@@ -351,26 +390,53 @@
             ctx.beginPath(); ctx.ellipse(ax + 4, ay - r + 1, 4, 2.2, -0.6, 0, Math.PI * 2); ctx.fill();
           }
 
-          // snake
+          // snake (with a crash / starve animation)
           const n = snake.length;
+          const blink = dead === 'crash' && deathT < 0.9 && Math.floor(deathT * 10) % 2 === 0;
+          const shake = dead === 'crash' && deathT < 0.35 ? (Math.random() - 0.5) * 6 : 0;
+          ctx.save();
+          ctx.translate(shake, shake * 0.5);
           for (let i = n - 1; i >= 0; i--) {
             const s = snake[i];
             const t = i / Math.max(1, n - 1);
-            ctx.fillStyle = i === 0 ? '#7ff0a8' : `hsl(${145 - t * 40},${65 - t * 15}%,${55 - t * 18}%)`;
+            let col = i === 0 ? '#7ff0a8' : `hsl(${145 - t * 40},${65 - t * 15}%,${55 - t * 18}%)`;
+            if (dead) {
+              const fade = U.clamp((deathT - 0.3 - (dead === 'starved' ? (1 - t) * 0.8 : 0)) / 0.8, 0, 1);
+              col = blink ? '#ffffff' : `hsl(${145 - t * 40},${U.lerp(55, 5, fade)}%,${U.lerp(50, 28, fade)}%)`;
+            }
+            ctx.fillStyle = col;
             const pad = i === 0 ? 1 : 2.5;
-            D.roundRect(ctx, s.x * CELL + pad, TOP + s.y * CELL + pad, CELL - pad * 2, CELL - pad * 2, 7);
+            let ox = 0, oy = 0;
+            if (i === 0 && bonk) { const k = Math.min(1, deathT * 8) * 7; ox = bonk.x * k; oy = bonk.y * k; }  // head pushed into what it hit
+            D.roundRect(ctx, s.x * CELL + pad + ox, TOP + s.y * CELL + pad + oy, CELL - pad * 2, CELL - pad * 2, 7);
             ctx.fill();
           }
-          // eyes
-          const h = snake[0], hx = h.x * CELL + CELL / 2, hy = TOP + h.y * CELL + CELL / 2;
-          ctx.fillStyle = '#062012';
+          // eyes (crossed out once it's dead)
+          const h = snake[0];
+          const hx = h.x * CELL + CELL / 2 + (bonk ? bonk.x * 7 : 0), hy = TOP + h.y * CELL + CELL / 2 + (bonk ? bonk.y * 7 : 0);
+          ctx.strokeStyle = ctx.fillStyle = '#062012';
+          ctx.lineWidth = 2;
           for (const side of [-1, 1]) {
             const ex = hx + dir.x * 5 + dir.y * side * 5, ey = hy + dir.y * 5 - dir.x * side * 5;
-            ctx.beginPath(); ctx.arc(ex, ey, 2.6, 0, Math.PI * 2); ctx.fill();
+            if (dead) {
+              ctx.beginPath(); ctx.moveTo(ex - 2.5, ey - 2.5); ctx.lineTo(ex + 2.5, ey + 2.5); ctx.moveTo(ex + 2.5, ey - 2.5); ctx.lineTo(ex - 2.5, ey + 2.5); ctx.stroke();
+            } else { ctx.beginPath(); ctx.arc(ex, ey, 2.6, 0, Math.PI * 2); ctx.fill(); }
           }
-          if (dead) {
-            ctx.fillStyle = 'rgba(242,92,105,.25)';
-            ctx.fillRect(0, TOP, api.W, api.H - TOP);
+          // impact stars
+          if (dead === 'crash' && deathT < 1.2) {
+            const cx = hx + bonk.x * 10, cy = hy + bonk.y * 10;
+            ctx.fillStyle = C.warn;
+            for (let k = 0; k < 5; k++) {
+              const a = k * 1.256 + deathT * 4, r = 8 + deathT * 18;
+              ctx.globalAlpha = Math.max(0, 1 - deathT);
+              ctx.fillRect(cx + Math.cos(a) * r - 2, cy + Math.sin(a) * r - 2, 4, 4);
+            }
+            ctx.globalAlpha = 1;
+          }
+          ctx.restore();
+          if (dead && deathT > 0.4) {
+            const msg = dead === 'starved' ? 'STARVED' : bonk && bonk.wall ? 'BONK!' : 'OUCH!';
+            D.text(ctx, msg, api.W / 2, TOP + 120, { size: 40, pixel: true, align: 'center', color: C.bad, glow: C.bad });
           }
 
           // HUD

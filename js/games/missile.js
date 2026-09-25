@@ -8,7 +8,7 @@
 
    Our flip design: the classic game makes you defend. Here either side
    can be human. The attacker gets more missiles, faster missiles, and
-   (from wave 3) splitting warheads as the waves go by.
+   (from wave 3) warheads that split as the waves go by.
    ========================================================================== */
 (function () {
   'use strict';
@@ -29,7 +29,7 @@
     title: 'Missile Command',
     tagline: 'Defend six cities, or be the one raining missiles on them.',
     flip: 'you choose the targets and launch the missiles, and the computer shoots them down.',
-    blurb: 'The attacker gets a missile budget each wave and chooses what to hit. The defender has three batteries of 10 interceptors, and each shot detonates wherever you point. Keep one city standing through 7 waves to win as the defender. Later waves bring more missiles, faster missiles, and warheads that split in three.',
+    blurb: 'The attacker gets a missile budget each wave and chooses what to hit. The defender has three batteries of 10 interceptors, and each shot detonates wherever you point. Keep one city standing through 7 waves to win as the defender. Later waves bring more missiles, faster missiles, and warheads that split in two.',
     menuText: 'The defender wins by keeping a city alive through <b>7 waves</b>. The attacker wins by flattening <b>all 6 cities</b>.',
     sides: [
       { key: 'defender', label: 'Defender', human: 'Click in the sky to detonate an interceptor there. The nearest battery with ammo fires it.', cpu: 'Spots incoming missiles after a short reaction delay, works out where to aim so the blast meets the missile, and doesn\'t waste shots on missiles that are already doomed. It gets quicker and more accurate each wave.' },
@@ -61,8 +61,8 @@
       let gameOver = false;
       const stars = Array.from({ length: 60 }, () => ({ x: Math.random() * W, y: Math.random() * 380, b: Math.random() }));
 
-      const budgetFor = w => 8 + Math.round(w * 2.7);
-      const mSpeed = () => 42 + wave * 10;
+      const budgetFor = w => 8 + Math.round(w * 2.4);
+      const mSpeed = () => 39 + wave * 9.5;
       const maxInFlight = () => 4 + wave;
       const reloadTime = () => Math.max(0.25, 0.55 - wave * 0.04);
 
@@ -111,93 +111,71 @@
 
       const blastRadius = bl => (bl.t < GROW ? (bl.t / GROW) * BLAST_R : bl.t < GROW + HOLD ? BLAST_R : Math.max(0, BLAST_R * (1 - (bl.t - GROW - HOLD) / SHRINK)));
 
-      /* ---------- computer defender ---------- */
-      let defCool = 0;
-      const planned = [];     // {x,y,at} blasts the AI already committed to
-      const defSkill = () => Math.min(0.88, 0.34 + (wave - 1) * 0.1);
-      function cpuDefend(dt) {
-        const s = defSkill();
-        defCool -= dt;
-        if (defCool > 0) return;
-        const now = api.time;
-        // forget plans that have played out
-        for (let i = planned.length - 1; i >= 0; i--) if (planned[i].at < now - HOLD) planned.splice(i, 1);
-        const reaction = U.lerp(1.3, 0.3, s);
+      /* ---------- computer defender (plays like a person with a mouse) ---------- */
+      // People notice each new missile a moment after it appears (more to track =
+      // slower), then have to move the mouse to it — farther moves take longer
+      // (Fitts' law). They aim "just in front" of a missile but usually not quite
+      // far enough, and they waste some shots: firing twice at the same missile,
+      // or at one headed for a city that's already rubble.
+      const dp = new Arcade.Human({ reaction: 0.28 });
+      const cursor = { x: W / 2, y: 300, busyUntil: 0 };
+      const noticed = new WeakMap(), shotAt = new WeakMap();
+      const defSkill = () => Math.min(0.92, 0.5 + (wave - 1) * 0.07);
+      function cpuDefend() {
+        const now = api.time, s = defSkill();
+        for (const m of missiles) if (!noticed.has(m)) noticed.set(m, now + dp.react(true));
+        if (now < cursor.busyUntil) return;
+        dp.pressure = U.clamp(missiles.length / 7, 0, 1);
         const live = bats.filter(b => b.alive && b.ammo > 0);
         if (!live.length) return;
-        const cand = missiles.filter(m => now - m.born > reaction && !covered(m))
+        const cand = missiles.filter(m => noticed.get(m) <= now && m.y < GROUND - 60)
+          .filter(m => !shotAt.has(m) || now > shotAt.get(m) || U.chance((1 - s) * 0.02))   // shoot again if it survived; sometimes double up early
           .filter(m => {
-            // a sharp defender ignores missiles aimed at rubble
-            const tgtAlive = cities.some(c => c.alive && Math.abs(c.x - m.tx) < HIT_R) || bats.some(b => b.alive && Math.abs(b.x - m.tx) < HIT_R);
-            return tgtAlive || !U.chance(s);
+            const alive = cities.some(c => c.alive && Math.abs(c.x - m.tx) < HIT_R) || bats.some(b => b.alive && Math.abs(b.x - m.tx) < HIT_R);
+            return alive || U.chance((1 - s) * 0.6);                                   // wasting shots on rubble
           })
-          .sort((a, b) => (GROUND - a.y) / a.vy - (GROUND - b.y) / b.vy);
+          .sort((a, b) => b.y - a.y);                                                  // lowest first
         const m = cand[0];
         if (!m) return;
-        // choose the battery that can get a blast there soonest
-        let best = null;
-        for (const b of live) {
-          const sp = INT_SPEED[b.i];
-          let T = Math.hypot(m.x - b.x, m.y - BAT_Y) / sp;
-          let px = m.x, py = m.y;
-          for (let k = 0; k < 6; k++) {                 // refine the intercept point
-            const lead = T + GROW * 0.45;
-            px = m.x + m.vx * lead; py = m.y + m.vy * lead;
-            T = Math.hypot(px - b.x, py - BAT_Y) / sp;
-          }
-          if (py > GROUND - 45) continue;                // too late for this battery
-          if (!best || T < best.T) best = { b, T, px, py };
-        }
-        if (!best) return;
-        const err = U.lerp(34, 7, s);
-        const ax = best.px + U.gauss() * err, ay = best.py + U.gauss() * err;
-        if (fireAt(ax, ay, best.b.i)) {
-          planned.push({ x: ax, y: ay, at: now + best.T });
-          defCool = U.lerp(0.6, 0.18, s) + U.rand(0, 0.18);
-        }
-      }
-      // will this missile fly into a blast that's already on its way?
-      function covered(m) {
-        const now = api.time;
-        for (const p of planned) {
-          const dtm = Math.max(0, p.at - now) + GROW * 0.5;
-          if (Math.hypot(m.x + m.vx * dtm - p.x, m.y + m.vy * dtm - p.y) < BLAST_R * 0.8) return true;
-        }
-        for (const bl of blasts) {
-          if (bl.t > GROW + HOLD) continue;
-          if (Math.hypot(m.x + m.vx * 0.2 - bl.x, m.y + m.vy * 0.2 - bl.y) < BLAST_R * 0.9) return true;
-        }
-        return false;
+        // pick the battery a person would: the nearest one with ammo
+        const b = live.reduce((a, k) => (Math.abs(k.x - m.x) < Math.abs(a.x - m.x) ? k : a));
+        const sp = INT_SPEED[b.i];
+        let T = Math.hypot(m.x - b.x, m.y - BAT_Y) / sp;
+        for (let k = 0; k < 3; k++) T = Math.hypot(m.x + m.vx * T - b.x, m.y + m.vy * T - BAT_Y) / sp;
+        const leadK = U.rand(U.lerp(0.6, 0.85, s), 1.05);                              // under-leads more often than not
+        const sd = U.lerp(18, 6, s);
+        const ax = m.x + m.vx * (T + GROW * 0.4) * leadK + dp.scatter(sd);
+        const ay = Math.min(GROUND - 45, m.y + m.vy * (T + GROW * 0.4) * leadK + dp.scatter(sd));
+        // moving the mouse there takes time; then click
+        const move = 0.12 + 0.09 * Math.log2(1 + Math.hypot(ax - cursor.x, ay - cursor.y) / 30);
+        cursor.busyUntil = now + move + U.rand(0.03, 0.12);
+        cursor.x = ax; cursor.y = ay;
+        if (fireAt(ax, ay)) shotAt.set(m, now + T + GROW + HOLD);        // they'll see whether it worked
       }
 
-      /* ---------- computer attacker ---------- */
-      let atkCool = 1.2;
-      const atkSkill = () => Math.min(0.7, 0.1 + (wave - 1) * 0.1);
+      /* ---------- computer attacker (plays like a person) ---------- */
+      // Picks a city to go after and sends a few missiles at it, clicking at a
+      // person's pace, then switches. Early on it spreads shots around; later it
+      // knocks out batteries first and sends quick bursts from different angles.
+      const ap = new Arcade.Human({ reaction: 0.3 });
+      let atkCool = 1.2, focus = null, focusLeft = 0;
+      const atkSkill = () => Math.min(0.8, 0.15 + (wave - 1) * 0.11);
       function cpuAttack(dt) {
         atkCool -= dt;
         if (atkCool > 0 || budget <= 0 || reload > 0 || missiles.length >= maxInFlight()) return;
-        const p = atkSkill();
-        atkCool = U.lerp(1.8, 0.55, p) + U.rand(0, 0.8);
+        const s = atkSkill();
         const t = targets();
         if (!t.length) return;
-        let tgt;
-        if (U.chance(p)) {
-          // least-defended city: far from batteries that still have ammo
-          const armed = bats.filter(b => b.alive && b.ammo > 0);
-          const cityT = t.filter(x => x.kind === 'city');
-          if (armed.length && U.chance(p * 0.35)) tgt = t.filter(x => x.kind === 'bat').sort((a, b) => U.rand(-1, 1))[0];
-          if (!tgt && cityT.length) {
-            tgt = cityT.map(c => ({ c, d: Math.min(...armed.map(b => Math.abs(b.x - c.x)), 999) }))
-              .sort((a, b) => b.d - a.d)[U.chance(0.6) ? 0 : U.randInt(0, cityT.length - 1)].c;
-          }
+        if (!focus || focusLeft <= 0 || !t.some(x => x.x === focus.x)) {
+          const armedBats = t.filter(x => x.kind === 'bat');
+          const citiesLeft = t.filter(x => x.kind === 'city');
+          focus = armedBats.length && U.chance(s * 0.3) ? U.pick(armedBats) : U.pick(citiesLeft.length ? citiesLeft : t);
+          focusLeft = U.chance(s) ? U.randInt(2, 4) : 1;
         }
-        tgt = tgt || U.pick(t);
-        launchAt(tgt.x + U.rand(-6, 6));
-        // salvo: extra missiles from far-apart start points
-        if (U.chance(p * 0.5)) {
-          const extra = U.chance(p) ? 2 : 1;
-          for (let i = 0; i < extra; i++) { reload = 0; launchAt(tgt.x + U.rand(-8, 8), U.rand(10, W - 10)); }
-        }
+        const tx = focus.x + ap.scatter(U.lerp(40, 10, s));
+        launchAt(U.clamp(tx, 10, W - 10), U.chance(s * 0.6) ? U.rand(10, W - 10) : undefined);
+        focusLeft--;
+        atkCool = focusLeft > 0 && U.chance(s) ? U.rand(0.2, 0.45) : ap.react(true) + U.rand(0.4, 1.4);
       }
 
       /* ---------- impacts ---------- */
@@ -213,7 +191,7 @@
 
       function splitMissile(m) {
         const t = targets();
-        for (let k = 0; k < 3; k++) {
+        for (let k = 0; k < 2; k++) {
           const tg = t.length ? U.pick(t) : { x: U.rand(40, W - 40) };
           const tx = tg.x + U.rand(-8, 8), ty = GROUND - 4;
           const d = Math.hypot(tx - m.x, ty - m.y);
@@ -241,7 +219,7 @@
             // an idle human attacker still has to spend the budget
             const t = targets(); if (t.length) launchAt(U.pick(t).x);
           }
-          if (!api.isHuman('defender')) cpuDefend(dt);
+          if (!api.isHuman('defender')) cpuDefend();
 
           // enemy missiles
           for (let i = missiles.length - 1; i >= 0; i--) {
@@ -275,7 +253,7 @@
             }
             wave++;
             phase = 'intro'; phaseT = 2.5;
-            api.toast(`Wave ${wave}${wave === 3 ? ' — splitting warheads!' : ''}`, C.warn);
+            api.toast(`Wave ${wave}${wave === 3 ? ' — warheads that split!' : ''}`, C.warn);
           }
         },
 
@@ -363,7 +341,7 @@
 
           if (phase === 'intro' && !gameOver) {
             D.text(ctx, `WAVE ${wave}`, W / 2, H / 2 - 30, { size: 44, pixel: true, align: 'center', glow: C.accent });
-            D.text(ctx, `${budgetFor(wave)} missiles incoming${wave >= 3 ? ' · splitting warheads' : ''}`, W / 2, H / 2 + 14, { size: 15, color: C.muted, align: 'center' });
+            D.text(ctx, `${budgetFor(wave)} missiles incoming${wave >= 3 ? ' · warheads that split' : ''}`, W / 2, H / 2 + 14, { size: 15, color: C.muted, align: 'center' });
           }
 
           const who = k => (api.isHuman(k) ? 'YOU' : 'CPU');

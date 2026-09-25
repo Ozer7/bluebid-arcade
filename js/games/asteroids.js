@@ -1,19 +1,19 @@
 /* ==========================================================================
    ASTEROIDS — a pilot against the asteroid thrower.
-   The pilot must survive 5 waves (25 seconds each) with 3 lives.
+   The pilot must survive 5 waves (20 seconds each) with 4 lives.
    The thrower launches asteroids from the edges, paid for with energy
    that recharges faster every wave. Big rocks split into smaller ones.
 
    Fairness: the computer pilot uses the same thrust, turn rate, bullet
-   speed and fire cooldown as a human. It has to turn to aim and it can
-   miss. The computer thrower pays the same energy costs as a human.
+   speed and fire cooldown as a human. It has to turn to aim, it reacts
+   with human delays, and it misses. The computer thrower pays the same energy costs as a human.
    ========================================================================== */
 (function () {
   'use strict';
   const { C, util: U, draw: D } = Arcade;
 
   const W = 800, H = 600;
-  const WAVES = 5, WAVE_TIME = 25;
+  const WAVES = 5, WAVE_TIME = 20;
   const TURN = 4.2, THRUST = 260, DRAG = 0.55, MAX_V = 330;
   const BULLET_V = 520, BULLET_LIFE = 1.05, FIRE_COOLDOWN = 0.22, MAX_BULLETS = 5;
   const SHIP_R = 12;
@@ -35,8 +35,8 @@
     title: 'Asteroids',
     tagline: 'A pilot trying to survive against the player hurling the rocks.',
     flip: 'the computer flies the ship, you send the asteroids.',
-    blurb: 'The pilot has 3 lives and has to survive 5 waves of 25 seconds each. The thrower spends energy to launch asteroids from the edge of the screen. Energy recharges faster every wave, and big rocks split into smaller, faster ones when shot.',
-    menuText: 'The pilot wins by surviving <b>5 waves</b>. The thrower wins by taking all <b>3 lives</b>. The thrower gets more energy every wave.',
+    blurb: 'The pilot has 4 lives and has to survive 5 waves of 20 seconds each. The thrower spends energy to launch asteroids from the edge of the screen. Energy recharges faster every wave, and big rocks split into smaller, faster ones when shot.',
+    menuText: 'The pilot wins by surviving <b>5 waves</b>. The thrower wins by taking all <b>4 lives</b>. The thrower gets more energy every wave.',
     sides: [
       { key: 'pilot', label: 'Pilot', human: '← → to turn, ↑ to thrust, Space to fire.', cpu: 'Works out when each rock will pass closest, dodges the urgent ones, and leads its shots on the rest. It has to rotate to aim like you do, and its aim and reactions sharpen each wave.' },
       { key: 'thrower', label: 'Thrower', human: 'Click anywhere to throw an asteroid from the nearest edge toward that point. 1 / 2 / 3 or the mouse wheel picks the size (small, medium, big).', cpu: 'Starts by throwing random rocks. Later it leads the ship, fires from behind it, and sends crossfire from both sides.' }
@@ -64,7 +64,7 @@
 
     create(api) {
       let wave = 1, waveT = 0;
-      let lives = 3, score = 0;
+      let lives = 4, score = 0;
       let energy = 5, size = 3;
       const ship = { x: W / 2, y: H / 2, vx: 0, vy: 0, a: -Math.PI / 2, alive: true, inv: 2, respawn: 0, thrusting: false };
       let bullets = [], rocks = [], sparks = [];
@@ -72,8 +72,8 @@
       let gameDone = false;
       const stars = Array.from({ length: 70 }, () => ({ x: Math.random() * W, y: Math.random() * H, b: Math.random() }));
 
-      const regen = () => 0.7 + (wave - 1) * 0.26;        // energy per second
-      const maxRocks = () => 9 + wave * 2;
+      const regen = () => 0.55 + (wave - 1) * 0.2;        // energy per second
+      const maxRocks = () => 6 + wave * 2;
       const speedMul = () => 1 + (wave - 1) * 0.1;
 
       function makeRock(x, y, vx, vy, sz) {
@@ -103,29 +103,42 @@
         return true;
       }
 
-      /* ---------- computer thrower ---------- */
-      let throwThink = 1.5;
-      const throwerSkill = () => Math.min(0.6, 0.1 + (wave - 1) * 0.13 + waveT / 200);
+      /* ---------- computer thrower (plays like a person) ---------- */
+      // People save up and throw in bursts of 2–3 clicks, aim at where the ship
+      // is (not where it will be) with some scatter, and start with big rocks.
+      // Later they mix in fast small rocks, lead the ship a little, and come
+      // at it from behind.
+      const tp = new Arcade.Human({ reaction: 0.3 });
+      let throwThink = 1.5, burstLeft = 0;
+      const throwerSkill = () => Math.min(0.6, 0.1 + (wave - 1) * 0.11 + waveT / 300);
       function cpuThrow(dt) {
         throwThink -= dt;
         if (throwThink > 0) return;
         const s = throwerSkill();
-        throwThink = U.lerp(1.6, 0.45, s) + U.rand(0, 0.5);
-        // pick a size it can afford; smarter throwers mix in fast small rocks
-        const sz = U.chance(s * 0.5) ? U.pick([1, 2]) : U.pick([2, 3, 3]);
-        if (energy < SIZES[sz].cost) return;
-        if (!U.chance(s)) return void launch(U.rand(80, W - 80), U.rand(80, H - 80), sz);
-        // aim where the ship will be, and come from behind it
-        const t = U.rand(0.8, 1.6);
-        const tx = U.clamp(ship.x + ship.vx * t, 30, W - 30), ty = U.clamp(ship.y + ship.vy * t, 30, H - 30);
-        launch(tx, ty, sz);
-        // crossfire: a second rock from the far side
-        if (U.chance(s * 0.5) && energy >= SIZES[1].cost) launch(W - tx, H - ty, 1);
+        if (burstLeft <= 0) {
+          if (energy < U.lerp(8, 5, s)) { throwThink = 0.3; return; }        // saving up
+          burstLeft = U.randInt(1, 3);
+        }
+        const sz = U.chance(0.2 + s * 0.4) ? U.pick([1, 1, 2]) : U.pick([3, 3, 2]);
+        if (energy < SIZES[sz].cost) { burstLeft = 0; throwThink = 0.4; return; }
+        const lead = U.chance(s) ? U.rand(0.3, 1.2) : 0;
+        let tx = ship.x + ship.vx * lead + tp.scatter(U.lerp(90, 30, s));
+        let ty = ship.y + ship.vy * lead + tp.scatter(U.lerp(90, 30, s));
+        if (U.chance(s * 0.4)) { tx -= Math.cos(ship.a) * 60; ty -= Math.sin(ship.a) * 60; }   // from behind
+        launch(U.clamp(tx, 20, W - 20), U.clamp(ty, 20, H - 20), sz);
+        burstLeft--;
+        throwThink = burstLeft > 0 ? U.rand(0.22, 0.45) : tp.react(true) + U.rand(0.6, 1.8);
       }
 
-      /* ---------- computer pilot ---------- */
-      const pilotSkill = () => U.clamp(0.15 + (wave - 1) * 0.12 + waveT / 250, 0.15, 0.72);
-      const ai = { think: 0, turn: 0, thrust: false, fire: false, aimErr: 0 };
+      /* ---------- computer pilot (plays like a person) ---------- */
+      // Stays near the middle, turns toward the nearest rock and fires in bursts,
+      // leading its shots only partly. New rocks are noticed a reaction-time
+      // after they appear. When one gets too close it commits to a single panic
+      // escape — it doesn't compute the best one — and it's bad at braking, so it
+      // drifts toward the edges where wrapping rocks catch it.
+      const pilotSkill = () => U.clamp(0.55 + (wave - 1) * 0.1 + waveT / 250, 0.55, 0.92);
+      const pp = new Arcade.Human({ reaction: 0.25 });
+      const ai = { known: new WeakMap(), target: null, retarget: 0, aimErr: 0, escape: null, homeBurst: 0, out: {} };
 
       // time and distance of closest approach between ship and a rock (straight lines, wrap-aware)
       function approach(r) {
@@ -137,81 +150,76 @@
       }
 
       function cpuPilot(dt) {
-        const s = pilotSkill();
-        ai.think -= dt;
-        if (ai.think <= 0) {
-          ai.think = U.lerp(0.28, 0.07, s);
-          ai.aimErr = U.gauss() * U.lerp(0.3, 0.05, s);
-          decide(s);
-        }
-        return ai;
-      }
+        const now = api.time, s = pilotSkill();
+        const out = (ai.out = { turn: 0, thrust: false, fire: false, wantAngle: undefined });
+        if (!ship.alive) return out;
+        for (const r of rocks) if (!ai.known.has(r)) ai.known.set(r, now + pp.react(true));
+        const seen = rocks.filter(r => ai.known.get(r) <= now);
+        pp.pressure = U.clamp(seen.filter(r => Math.hypot(offX(ship.x, r), offY(ship.y, r)) < 220).length / 5, 0, 1);
 
-      // Try a manoeuvre in a quick simulation: hold (turn, thrust) for `hold` seconds,
-      // then coast. Returns the smallest gap to any rock over the next 1.2 s.
-      function clearance(turn, thrust, hold, near) {
-        let x = 0, y = 0, vx = ship.vx, vy = ship.vy, a = ship.a, worst = Infinity;
-        const dt = 1 / 30, drag = Math.exp(-DRAG * dt);
-        for (let t = dt; t <= 1.2; t += dt) {
-          if (t <= hold) { a += turn * TURN * dt; if (thrust) { vx += Math.cos(a) * THRUST * dt; vy += Math.sin(a) * THRUST * dt; } }
-          vx *= drag; vy *= drag;
-          x += vx * dt; y += vy * dt;
-          for (const n of near) {
-            const g = Math.hypot(n.px + n.vx * t - x, n.py + n.vy * t - y) - n.r * 0.9 - SHIP_R;
-            if (g < worst) worst = g;
+        // committed to an escape: turn that way and thrust once roughly facing it
+        if (ai.escape && now < ai.escape.until) {
+          out.wantAngle = ai.escape.angle;
+          out.thrust = Math.abs(U.angleDiff(ship.a, ai.escape.angle)) < 0.7;
+          out.fire = true;                                   // people keep mashing fire while escaping
+          return out;
+        }
+        ai.escape = null;
+
+        // danger: a seen rock about to pass too close
+        if (ship.inv <= 0) {
+          let danger = null;
+          for (const r of seen) {
+            const ap = approach(r);
+            if (ap.d < r.r + SHIP_R + 22 && ap.t < U.lerp(0.8, 1.3, s) && (!danger || ap.t < danger.ap.t)) danger = { r, ap };
           }
-        }
-        return worst;
-      }
-
-      function decide(s) {
-        ai.fire = false; ai.thrust = false; ai.turn = 0; ai.wantAngle = undefined; ai.plan = null;
-        if (!ship.alive) return;
-        const near = rocks.map(r => ({ r, px: offX(ship.x, r), py: offY(ship.y, r), vx: r.vx, vy: r.vy, sz: r.sz }))
-          .filter(n => Math.hypot(n.px, n.py) < 330).map(n => Object.assign(n, { r: n.r.r, rock: n.r }));
-
-        // 1) danger check: if coasting brings a rock too close, pick the best escape manoeuvre
-        const margin = U.lerp(8, 26, s);
-        if (ship.inv <= 0 && near.length) {
-          const idle = clearance(0, false, 0, near);
-          if (idle < margin) {
-            let best = null;
-            for (const turn of [-1, 0, 1]) for (const thrust of [true, false]) for (const hold of [0.25, 0.5, 0.8]) {
-              if (!thrust && hold > 0.25) continue;
-              // a sloppier pilot misjudges its options a little
-              const c = clearance(turn, thrust, hold, near) + U.gauss() * (1 - s) * 18;
-              if (!best || c > best.c) best = { c, turn, thrust, hold };
-            }
-            if (best && best.c > idle) { ai.plan = { turn: best.turn, thrust: best.thrust, t: best.hold }; }
+          if (danger && !pp.lapsed(0.25)) {
+            const { r, ap } = danger;
+            const toRock = Math.atan2(ap.py, ap.px);
+            // small rock dead ahead? shoot it instead of running
+            if (r.sz === 1 && Math.abs(U.angleDiff(ship.a, toRock)) < 0.3 && U.chance(0.6)) { out.wantAngle = toRock; out.fire = true; return out; }
+            const rvx = r.vx - ship.vx, rvy = r.vy - ship.vy;
+            let ex = -(ap.px + rvx * ap.t), ey = -(ap.py + rvy * ap.t);
+            if (Math.hypot(ex, ey) < 4) { ex = -rvy; ey = rvx; }
+            let esc = Math.atan2(ey, ex);
+            // if the ship already points roughly sideways to the rock, people just hit thrust
+            if (Math.abs(U.angleDiff(ship.a, esc)) < 0.6) esc = ship.a;
+            ai.escape = { angle: esc + pp.scatter(U.lerp(0.3, 0.1, s)), until: now + U.rand(0.3, 0.55) };
+            out.wantAngle = ai.escape.angle;
+            out.thrust = Math.abs(U.angleDiff(ship.a, esc)) < 0.7;
+            return out;
           }
         }
 
-        // 2) aim: the most urgent rock on a collision course, else the easiest nearby target
-        let target = null, bestScore = Infinity;
-        for (const n of near) {
-          const ap = approach(n.rock);
-          const onCourse = ap.d < n.r + SHIP_R + 30 && ap.t < 2.5;
-          const d = Math.hypot(n.px, n.py);
-          const turnCost = Math.abs(U.angleDiff(ship.a, Math.atan2(n.py, n.px))) * 110;
-          const sc = (onCourse ? ap.t * 150 : 400 + d) + turnCost;
-          if (sc < bestScore) { bestScore = sc; target = n; }
+        // hunting: re-pick a target every so often (nearest rock; better players go for small fast ones)
+        ai.retarget -= dt;
+        if (ai.retarget <= 0 || !rocks.includes(ai.target)) {
+          ai.retarget = U.rand(0.35, 0.8);
+          let best = null, bestScore = Infinity;
+          for (const r of seen) {
+            const d = Math.hypot(offX(ship.x, r), offY(ship.y, r));
+            const sc = d - (s > 0.6 ? (3 - r.sz) * 40 : 0) + Math.abs(U.angleDiff(ship.a, Math.atan2(offY(ship.y, r), offX(ship.x, r)))) * 60;
+            if (sc < bestScore) { bestScore = sc; best = r; }
+          }
+          ai.target = best;
+          ai.aimErr = pp.scatter(U.lerp(0.12, 0.04, s));
         }
-        if (target) {
-          const { px, py, vx, vy } = target;
-          // intercept: solve |p + v t| = BULLET_V t
-          const a = vx * vx + vy * vy - BULLET_V * BULLET_V, b = 2 * (px * vx + py * vy), c = px * px + py * py;
-          const disc = b * b - 4 * a * c;
-          let t = disc > 0 ? (-b - Math.sqrt(disc)) / (2 * a) : 0;
-          if (t < 0) t = (-b + Math.sqrt(Math.max(0, disc))) / (2 * a);
-          ai.wantAngle = Math.atan2(py + vy * t, px + vx * t) + ai.aimErr;
-          const off = Math.abs(U.angleDiff(ship.a, ai.wantAngle));
-          ai.fire = off < Math.atan2(target.r * 0.8, Math.hypot(px, py)) + U.lerp(0.1, 0.02, s);
-        } else {
-          // nothing close: drift back toward the middle
-          const cx = W / 2 - ship.x, cy = H / 2 - ship.y;
-          ai.wantAngle = Math.atan2(cy, cx);
-          ai.thrust = Math.hypot(cx, cy) > 160 && Math.hypot(ship.vx, ship.vy) < 50 && Math.abs(U.angleDiff(ship.a, ai.wantAngle)) < 0.3;
+        const r = ai.target;
+        if (r) {
+          const px = offX(ship.x, r), py = offY(ship.y, r);
+          const d = Math.hypot(px, py);
+          const lead = U.lerp(0.6, 0.95, s) * (d / BULLET_V);        // only partly leads the shot
+          const ang = Math.atan2(py + r.vy * lead, px + r.vx * lead) + ai.aimErr;
+          out.wantAngle = ang;
+          out.fire = Math.abs(U.angleDiff(ship.a, ang)) < 0.28 && d < 420;   // bursts when roughly lined up
         }
+        // drift back toward the middle now and then — and forget to brake
+        const cx = W / 2 - ship.x, cy = H / 2 - ship.y;
+        if (Math.hypot(cx, cy) > 200 && !r) {
+          out.wantAngle = Math.atan2(cy, cx);
+          out.thrust = Math.abs(U.angleDiff(ship.a, out.wantAngle)) < 0.3 && Math.hypot(ship.vx, ship.vy) < 90;
+        }
+        return out;
       }
 
       /* ---------- shared ship controls ---------- */
@@ -288,18 +296,12 @@
             shoot = api.keys.has('Space');
           } else {
             const a = cpuPilot(dt);
-            if (a.plan && a.plan.t > 0) {
-              // executing an escape manoeuvre
-              a.plan.t -= dt;
-              turn = a.plan.turn; thrust = a.plan.thrust;
-              if (a.plan.t <= 0) a.plan = null;
-            } else if (a.wantAngle !== undefined) {
-              // re-evaluate the turn every frame so it doesn't overshoot its target angle
+            if (a.wantAngle !== undefined) {
+              // hold the turn key until roughly pointed the right way (a little overshoot is normal)
               const d = U.angleDiff(ship.a, a.wantAngle);
-              turn = Math.abs(d) < TURN * dt ? 0 : Math.sign(d);
-              if (Math.abs(d) < TURN * dt) ship.a = a.wantAngle;
-              thrust = a.thrust;
+              turn = Math.abs(d) < 0.05 ? 0 : Math.sign(d);
             }
+            thrust = a.thrust;
             shoot = a.fire;
           }
 
