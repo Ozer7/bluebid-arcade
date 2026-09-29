@@ -93,7 +93,7 @@
     <h2>How a round works</h2>
     <ul class="rules">
       <li>Press <b>Find a match</b>. Matchmaking takes a few seconds either way, so how long you wait gives nothing away.</li>
-      <li>If another player is searching at the same time, you're paired with them. If not, Claude plays the other side and tries to pass as a person.</li>
+      <li>If another player is searching at the same time, a coin flip decides: you're paired with them, or you each get Claude. If nobody else is searching, Claude plays the other side and tries to pass as a person.</li>
       <li>You take <b>turns</b>, like the game Human or Not: one message each, up to <b>100 characters</b>, <b>20 seconds</b> to send it or your turn passes.</li>
       <li>Chat for <b>2:00</b>. You can lock in a guess early after 0:45.</li>
       <li>Guess <b>Human</b> or <b>AI</b>. If you played a person, they're guessing about you too.</li>
@@ -207,6 +207,8 @@
      MATCHMAKING
      Each search picks one random reveal time (7–18 s). At that
      moment: paired with a human → human round; otherwise → Claude.
+     When two people are searching, a coin flip decides whether they are
+     paired or each sent to Claude.
      Human and AI rounds start at the same range of times, so the
      wait never gives the answer away.
      ========================================================= */
@@ -228,7 +230,7 @@
           snap => tryPair(s, snap.docs), () => {}));
         s.unsubs.push(db.doc('queue/' + me).onSnapshot(d => {
           const v = d.exists ? d.data() : null;
-          if (v && v.status === 'matched' && v.match && !s.paired) s.paired = { mid: v.match, opp: v.opp, first: v.first };
+          if (v && v.status === 'matched' && !s.paired) s.paired = v.mode === 'ai' ? { mode: 'ai' } : (v.match ? { mode: 'human', mid: v.match, opp: v.opp, first: v.first } : null);
         }, () => {}));
       } catch (e) { /* matchmaking unavailable: fall back to Claude */ }
     }
@@ -244,7 +246,7 @@
     $('modem').textContent = lines.slice(0, 1 + Math.min(lines.length - 1, Math.floor(el / 1.5))).join('\n');
     if (el > 5) $('searchSub').textContent = 'Still looking… ' + Math.floor(el) + 's';
     if (Date.now() - s.start >= s.revealAt) {
-      if (s.paired) return foundMatch(s, 'human');
+      if (s.paired && s.paired.mode === 'human') return foundMatch(s, 'human');
       if (sample) return foundMatch(s, 'ai');
       // no Claude available: keep waiting for a person
       $('searchSub').textContent = 'Waiting for another player… ' + Math.floor(el) + 's';
@@ -257,7 +259,7 @@
   async function tryPair(s, docs) {
     if (s !== search || s.paired || s.busy) return;
     const now = Date.now();
-    const others = docs.filter(d => d.id !== me && d.data().t > now - 40000).sort((a, b) => a.data().t - b.data().t);
+    const others = docs.filter(d => d.id !== me && d.data().t > now - 25000).sort((a, b) => a.data().t - b.data().t);
     const other = others.find(d => me < d.id);
     if (!other) return;
     s.busy = true;
@@ -269,11 +271,20 @@
       const [a, b] = await Promise.all([db.doc('queue/' + me).get(), db.doc('queue/' + other.id).get()]);
       if (!a.exists || !b.exists || a.data().status !== 'waiting' || b.data().status !== 'waiting') return;
       const mid = 'm' + now.toString(36) + Math.random().toString(36).slice(2, 6);
+      // Coin flip: even when two people are searching together, half the time
+      // they are NOT put together and each one talks to Claude instead. So
+      // being able to see a friend searching tells you nothing.
+      if (sample && Math.random() < 0.5) {
+        await db.doc('queue/' + other.id).update({ status: 'matched', mode: 'ai' });
+        await db.doc('queue/' + me).update({ status: 'matched', mode: 'ai' });
+        s.paired = { mode: 'ai' };
+        return;
+      }
       const first = Math.random() < 0.5 ? me : other.id;
       await db.doc('matches/' + mid).set({ a: me, b: other.id, first, created: now });
-      await db.doc('queue/' + other.id).update({ status: 'matched', match: mid, opp: me, first });
-      await db.doc('queue/' + me).update({ status: 'matched', match: mid, opp: other.id, first });
-      s.paired = { mid, opp: other.id, first };
+      await db.doc('queue/' + other.id).update({ status: 'matched', match: mid, opp: me, first, mode: 'human' });
+      await db.doc('queue/' + me).update({ status: 'matched', match: mid, opp: other.id, first, mode: 'human' });
+      s.paired = { mode: 'human', mid, opp: other.id, first };
     } catch (e) { /* try again on the next change */ } finally { s.busy = false; }
   }
 
