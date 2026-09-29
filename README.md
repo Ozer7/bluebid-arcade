@@ -16,15 +16,15 @@ Seven arcade games on one static page. In every game, either side can be played 
 
 ## The look: a real arcade cabinet
 
-Research on arcade front-ends and cabinets (attract mode, marquee, bezel, control deck, three-letter high-score tables) shaped the page:
+Arcade cabinets and attract mode shaped the page:
 
 - **Cabinet:** a lit **marquee** on top (it changes to each game's colours), a curved **CRT** with scanlines inside a bezel, and a **control deck** with round arcade buttons (Back, Start, Pause, Sound).
-- **Game select in attract mode:** a joystick-style list (↑ ↓ or 1–7, Enter to start) with a live CPU-vs-CPU **demo** of the highlighted game, its original year, the flip, and its **top-5 high scores**. Left alone for 22 seconds, it cycles through the games by itself, like an arcade machine does.
+- **Game select in attract mode:** a list you move through with ↑ ↓ or 1–7 (Enter to start) with a live CPU-vs-CPU **demo** of the highlighted game, its original year, the flip, and its **top-5 high scores**. Left alone for 22 seconds, it cycles through the games by itself, like an arcade machine does.
 - **Instruction card** under the screen, like the printed card under the glass on a real cabinet.
 - **High scores with 3-letter initials** (arrow keys or typing), saved in the browser. **Sound effects** from a small chip-style synthesiser (WebAudio, no files), with an M key to mute.
 - **Every game has its own era look** instead of one shared style:
 
-| Game | Looks like | Details taken from the original |
+| Game | Looks like | Details |
 |---|---|---|
 | Snake | Nokia 6110 LCD (1998) | green-grey LCD palette, ghosting pixels, blinking death, points per apple rise with level |
 | Breakout | Atari 1976 cabinet | white-on-black monitor under coloured cellophane strips, 8 brick rows worth 1/3/5/7, square ball, speed-ups after 4 and 12 hits and on the first orange and red brick |
@@ -32,7 +32,7 @@ Research on arcade front-ends and cabinets (attract mode, marquee, bezel, contro
 | Asteroids | Atari vector monitor (1979) | glowing thin lines with phosphor afterglow, rocks worth 20/50/100, heartbeat that speeds up, risky hyperspace (Shift/H, 20% chance to explode) |
 | Missile Command | Atari raster (1980) | colour scheme changes every two waves (like the original's wave table), ABM pyramids on 3 bases, colour-cycling fireballs, score multiplier ×1→×4, end-of-wave bonus count, "THE END" explosion |
 | Stack & Deal | Game Boy Tetris (1989) | four greens, brick-walled well, block patterns instead of colours, blinking line clears, Game Boy scoring 40/100/300/1200 × level |
-| Imitation | teletype terminal | green phosphor text, modem "dialing" while matchmaking, Human or Not turn rules (one message each, 100 characters, 20 seconds per turn) |
+| Imitation | teletype terminal | green phosphor text, modem "dialing" while matchmaking, Human or Not turn rules (one message each, 100 characters, 20 seconds per turn), and a coin flip between a person and Claude when two players search at once |
 
 ## How the code is organised
 
@@ -96,14 +96,14 @@ Everything controlled with a mouse (the apple placer, the thrower, both Missile 
 
 ### Research behind the rules and the look
 
-- **Breakout (1976):** 8 rows in pairs of yellow, green, orange, red worth 1, 3, 5, 7; the ball speeds up after 4 hits, after 12 hits, and on first contact with the orange and red rows; the black-and-white monitor was coloured with cellophane strips ([Wikipedia: Breakout](https://en.wikipedia.org/wiki/Breakout_(video_game)), [Arcade Museum](https://www.arcade-museum.com/game_detail.php?game_id=7194)).
-- **Asteroids (1979):** vector display, inertia, hyperspace as a risky escape, large/medium/small rocks worth 20/50/100, and the two-note "heartbeat" that speeds up as a wave goes on ([Wikipedia: Asteroids](https://en.wikipedia.org/wiki/Asteroids_(video_game))).
-- **Missile Command (1980):** three bases with 10 missiles each (the center one fastest), a multiplier that climbs every two waves, bonus points for unused missiles and surviving cities, colour schemes that change every two waves, and the "THE END" screen ([Wikipedia: Missile Command](https://en.wikipedia.org/wiki/Missile_Command), [StrategyWiki](https://strategywiki.org/wiki/Missile_Command/Walkthrough)).
-- **Flappy Bird (2013):** a tap sets a fixed upward speed, gravity pulls hard, and medals come at 10/20/30/40 ([Flappy Bird Wiki](https://flappybird.fandom.com/wiki/Medals)).
-- **Nokia Snake:** the two-tone LCD palette ([Lospec: Nokia 3310](https://lospec.com/palette-list/nokia-3310)); higher levels give more points per food.
-- **Game Boy Tetris (1989):** the four-green DMG palette ([Lospec](https://lospec.com/palette-list/nintendo-gameboy-bgb)), 40/100/300/1200 × (level+1) scoring and blinking line clears ([Tetris Wiki](https://tetris.wiki/Tetris_(Game_Boy))).
+- **Breakout (1976):** 8 rows in pairs of yellow, green, orange, red worth 1, 3, 5, 7; the ball speeds up after 4 hits, after 12 hits, and on first contact with the orange and red rows; the black-and-white monitor was coloured with cellophane strips ([Wikipedia: Breakout](https://en.wikipedia.org/wiki/Breakout_(video_game))).
+- **Asteroids (1979):** vector display, inertia, hyperspace as a risky escape, and a "heartbeat" that quickens as the game goes on ([Wikipedia: Asteroids](https://en.wikipedia.org/wiki/Asteroids_(video_game))); large/medium/small rocks worth 20/50/100 ([Asteroids disassembly](https://6502disassembly.com/va-asteroids/)).
+- **Missile Command (1980):** three bases with 10 missiles each (the center one fastest), a multiplier that climbs every two waves, bonus points for remaining missiles and cities, and "The End" instead of "Game Over" ([Wikipedia: Missile Command](https://en.wikipedia.org/wiki/Missile_Command)); the colour scheme for each pair of waves ([Missile Command wave guide](https://6502disassembly.com/va-missile-command/wave-guide.html)).
+- **Flappy Bird (2013):** bronze, silver, gold and platinum medals at 10, 20, 30 and 40 points ([Wikipedia: Flappy Bird](https://en.wikipedia.org/wiki/Flappy_Bird)).
+- **Nokia Snake:** the two-tone LCD palette ([Lospec: Nokia 3310](https://lospec.com/palette-list/nokia-3310)).
+- **Game Boy Tetris (1989):** the four-green palette ([Lospec: Original Gameboy](https://lospec.com/palette-list/original-gameboy)), 40/100/300/1200 × (level+1) scoring ([TetrisWiki: Scoring](https://tetris.wiki/Scoring)), and a level every 10 lines ([TetrisWiki: Tetris (Game Boy)](https://tetris.wiki/Tetris_(Game_Boy))).
 - **Imitation:** AI21's *Human or Not* (2023): 2-minute chats, alternating turns, 100-character messages, 20 seconds per message. Players guessed right 68% of the time: 60% against bots and 73% against people ([Jannai et al., 2023](https://arxiv.org/abs/2305.20010)).
-- **Arcade look:** attract mode (title, demo, high scores, "insert coin") and three-initial high-score tables ([TV Tropes: Attract Mode](https://tvtropes.org/pmwiki/pmwiki.php/Main/AttractMode)); game feel from screen shake, flashes and sound ([Vlambeer, "The Art of Screenshake"](https://www.youtube.com/watch?v=AJdEqssNZ-U)).
+- **Arcade look:** attract mode, where an idle machine shows gameplay and high scores to draw players in ([TV Tropes: Attract Mode](https://tvtropes.org/pmwiki/pmwiki.php/Main/AttractMode)); game feel from screen shake, flashes and sound ([Jan Willem Nijman, "The Art of Screenshake"](https://www.youtube.com/watch?v=AJdEqssNZ-U)).
 
 The computer players get a little sharper as each game goes on ("warming up"), and the games themselves speed up. So a game starts easy and gets harder whichever side you're on. Fairness rules still apply to both sides: apples must be reachable, gap moves are limited, the dealer can't repeat a piece three times in a row, and speeds and ammo are the same for everyone.
 
@@ -123,7 +123,7 @@ Balance results after the arcade redesign (60 computer-vs-computer games each, o
 | Breakout | blue 57% / orange 43% (200-game run: 53/47) | ~0:55 |
 | Splat | flier 22% / builder 78% | ~0:42 |
 | Asteroids | pilot 32% / thrower 68% | ~1:30 |
-| Missile Command | defender 30% / attacker 70% | ~3:45, usually into wave 6–7 |
+| Missile Command | defender 30% / attacker 70% | ~3:45 |
 | Stack & Deal | stacker 53% / dealer 47% | ~2:40 |
 
 ## Deploying (GitHub → Netlify → games.bluebid.online)
