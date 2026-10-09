@@ -28,13 +28,13 @@
   const MAXF = 1800;                                        // strongest flick, px/s
   const NEED = { ant: 350, beetle: 1000, queen: 1300, ladybug: 350 };
   const GLASS_TIPS = 1150;
-  const HALF = f => Math.max(14, 48 - f * 0.08);           // half-width of a ripple after travelling f px: small, and shrinking as it travels, so every flick must be aimed
+  const HALF = f => Math.max(5, 16 - f * 0.027);           // half-width of a ripple after travelling f px: tiny, and shrinking as it travels, so every flick must be aimed
   const COST = { ant: 1, beetle: 4, queen: 12 };
   const PTS = { ant: 10, beetle: 50, queen: 150 };
   const SURVIVE = 120;                                      // seconds the picnic must last (an arcade run: 30 s – 3 min)
   const WAVE = 20;                                          // seconds per wave
   const LOSE_AT = 3;                                        // dishes gone when the bugs win
-  const INCOME = w => 12 + 3.5 * (w - 1);                  // crumbs per second (5x the last version): a flood from the start
+  const INCOME = w => 36 + 10.5 * (w - 1);                 // crumbs per second (15x the version before last): a flood from the start
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // dishes: grip = cloth speed (px/s) above which the cloth slides out from under them
@@ -316,13 +316,14 @@
       const breather = () => !coaching() && playT % WAVE > WAVE - 2;
 
       /* ---------- shared bugs action: spend crumbs to send a bug ---------- */
-      let crumbs = 75 + (api.startLevel - 1) * 20, pick = 'ant';
+      let crumbs = 225 + (api.startLevel - 1) * 60, pick = 'ant';
       const unlocked = t => (t === 'ant' || (t === 'beetle' && wave >= 2) || (t === 'queen' && wave >= 3));
       function send(type, side, along) {
         if (over || coaching()) return false;
         if (breather()) { if (api.isHuman('bugs')) api.toast('The bugs regroup: wait for the next wave'); return false; }
         if (!unlocked(type)) { if (api.isHuman('bugs')) api.toast(type === 'beetle' ? 'Beetles from wave 2' : 'Queen from wave 3'); return false; }
         if (crumbs < COST[type]) { if (api.isHuman('bugs')) api.toast('Not enough crumbs'); return false; }
+        if (bugs.length > 450) return false;                      // keep the frame rate smooth: the table is already swarming
         crumbs -= COST[type];
         const p = edgePoint(side, along);
         bugs.push(makeBug(type, p.x, p.y));
@@ -491,7 +492,7 @@
         if (!bSteps.length) planBugs();
         const s = bSteps[0];
         if (!s) return;
-        s.t = (s.t || 0) + dt * 5;                              // places bugs 5x faster than a person could
+        s.t = (s.t || 0) + dt * 15;                             // places bugs 15x faster than a person could
         const k = Math.min(1, s.t / s.dur);
         if (s.k === 'wait') { if (k >= 1 || (s.early && sinceFlick < 0.25 && s.t > 0.2)) bSteps.shift(); return; }
         if (s.k === 'move') { const p = along(s, k); bc.x = p.x; bc.y = p.y; if (k >= 1) bSteps.shift(); return; }
