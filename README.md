@@ -141,7 +141,7 @@ Balance results for Wave 2 (computer vs computer, 60–120 games each; Wave 1 in
 | Asteroids | pilot 45% / thrower 55% (was 32 / 68) | ~1:40 |
 | Missile Command | defender 50% / attacker 50% (was 30 / 70) | ~3:45 |
 | Stack & Deal | stacker 53% / dealer 47% (unchanged) | ~2:40 |
-| Picnic Defender | picnic ~2% / bugs ~98% (made hard on purpose after play-testing); the simulated experienced player (`node tests/skilled.js 60`) rarely survives | ~1:10 (2:00 if the picnic survives) |
+| Picnic Defender | bugs win almost every computer game (made the hardest game on purpose after play-testing); the simulated experienced player (`node tests/skilled.js 60`) lasts about 40 s | ~0:40 (2:00 if the picnic survives) |
 
 ## Deploying (GitHub → Netlify → games.bluebid.online)
 

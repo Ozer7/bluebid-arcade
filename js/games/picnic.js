@@ -28,12 +28,13 @@
   const MAXF = 1800;                                        // strongest flick, px/s
   const NEED = { ant: 350, beetle: 1000, queen: 1300, ladybug: 350 };
   const GLASS_TIPS = 1150;
+  const HALF = f => 70 + f * 0.25;                          // half-width of a ripple after travelling f px: a narrow band, so you have to aim each flick
   const COST = { ant: 1, beetle: 4, queen: 12 };
   const PTS = { ant: 10, beetle: 50, queen: 150 };
   const SURVIVE = 120;                                      // seconds the picnic must last (an arcade run: 30 s – 3 min)
   const WAVE = 20;                                          // seconds per wave
   const LOSE_AT = 3;                                        // dishes gone when the bugs win
-  const INCOME = w => 2.0 + 0.6 * (w - 1);                  // crumbs per second: swarms from the start, a flood by the last wave
+  const INCOME = w => 2.4 + 0.7 * (w - 1);                  // crumbs per second: swarms from the start, a flood by the last wave
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // dishes: grip = cloth speed (px/s) above which the cloth slides out from under them
@@ -204,12 +205,12 @@
       }
       function hitBy(r, o) {
         const ex = o.x - r.ox, ey = o.y - r.oy, s = ex * r.dx + ey * r.dy, perp = Math.abs(ex * r.dy - ey * r.dx);
-        return s > r.f - 26 && s < r.f + 26 && perp < 130 + r.f * 0.55;
+        return s > r.f - 26 && s < r.f + 26 && perp < HALF(r.f);
       }
       // a ripple is strongest along its centre line and fades toward its sides
       function strength(r, o) {
         const perp = Math.abs((o.x - r.ox) * r.dy - (o.y - r.oy) * r.dx);
-        return r.cur * (1 - 0.55 * Math.min(1, perp / (130 + r.f * 0.55)));
+        return r.cur * (1 - 0.55 * Math.min(1, perp / HALF(r.f)));
       }
 
       /* ---------- bugs ---------- */
@@ -387,7 +388,7 @@
       }
       function inPath(r, o) {
         const ex = o.x - r.ox, ey = o.y - r.oy, s = ex * r.dx + ey * r.dy, perp = Math.abs(ex * r.dy - ey * r.dx);
-        return s > 0 && s < 500 && perp < 130 + s * 0.55;
+        return s > 0 && s < 500 && perp < HALF(s);
       }
       function cpuPicnic(dt) {
         pBrain.pressure = U.clamp(bugs.filter(b => b.state === 'eat').length / 6 + (6 - alive().length) * 0.08, 0, 1);
@@ -482,7 +483,7 @@
          clicks. Its plan: go after the dish that is easiest to finish, come in
          from an edge the hand isn't guarding, strike right after a flick while
          the hand is busy, and now and then save up for one big rush. */
-      const bBrain = new Arcade.Human({ reaction: 0.32 });
+      const bBrain = new Arcade.Human({ reaction: 0.2 });
       const bc = { x: TB.x + TB.w + 40, y: TCY };                // its cursor (hidden from a human picnic player)
       let bSteps = [], saving = 0;
       const bSkill = () => Math.min(0.85, 0.3 + playT / 200);
@@ -494,7 +495,7 @@
         const k = Math.min(1, s.t / s.dur);
         if (s.k === 'wait') { if (k >= 1 || (s.early && sinceFlick < 0.25 && s.t > 0.2)) bSteps.shift(); return; }
         if (s.k === 'move') { const p = along(s, k); bc.x = p.x; bc.y = p.y; if (k >= 1) bSteps.shift(); return; }
-        if (k >= 1) { bSteps.shift(); const p = sideOf(bc.x, bc.y); send(s.type, p.side, p.along); }
+        if (k >= 1) { bSteps.shift(); const p = s.side != null ? s : sideOf(bc.x, bc.y); send(s.type, p.side, p.along); }
       }
       function planBugs() {
         const st = bSteps, pos = { x: bc.x, y: bc.y };
@@ -524,14 +525,19 @@
         else {
           if (!saving && wave >= 2 && U.chance(0.15)) saving = U.randInt(14, 22);      // save up for a rush
           if (saving && crumbs < saving) return wait(U.rand(0.5, 1));
-          n = saving ? Math.floor(crumbs) : Math.min(Math.floor(crumbs), U.randInt(4, 6 + wave * 2));
-          if (crumbs >= 18) n = Math.max(n, Math.floor(crumbs * 0.7));                  // never sit on a pile of crumbs: flood the table
+          n = saving ? Math.floor(crumbs) : Math.min(Math.floor(crumbs), U.randInt(2, 3 + wave));
+          if (crumbs >= 6) n = Math.max(n, Math.floor(crumbs * 0.9));                  // never sit on a pile of crumbs: a steady stream, not bursts
           saving = 0;
         }
         wait(bBrain.react(true) + 0.15 * Math.log2(opts.length * 2 + 1) * Math.exp(U.gauss() * 0.2));
-        aim(st, bBrain, bSkill(), pos, pt.x, pt.y, 30);
-        for (let i = 0; i < n; i++) st.push({ k: 'click', type, dur: i ? 0.08 + bBrain.point(4, 30) * 0.3 + U.rand(0, 0.05) : 0.06 })   // rapid clicks, like a fast mouse player;
-        wait(U.rand(0.1, 0.35) * ease, true);                     // look at the result; strike early if the hand just flicked
+        aim(st, bBrain, bSkill(), pos, pt.x, pt.y, 60);
+        // Clumps are easy to flick away in one go, so the bugs come in spread out: the first one where
+        // the pointer is, the rest each from its own spot, a third of them from other sides of the table.
+        for (let i = 0; i < n; i++) {
+          const spot = i === 0 ? {} : U.chance(0.35) ? { side: U.randInt(0, 3), along: Math.random() } : { side, along: U.clamp(al + U.rand(-0.45, 0.45), 0, 1) };
+          st.push(Object.assign({ k: 'click', type, dur: i ? 0.1 + U.rand(0, 0.12) : 0.06 }, spot));
+        }
+        wait(U.rand(0.05, 0.2) * ease, true);                     // look at the result; strike early if the hand just flicked
       }
 
       /* ---------- update ---------- */
@@ -756,7 +762,7 @@
         ctx.save(); ctx.beginPath(); ctx.rect(c.x, c.y, c.w, c.h); ctx.clip();
         gingham(ctx, c.x, c.y, c.w, c.h);
         for (const r of ripples) {
-          const a = U.clamp(r.cur / MAXF, 0.25, 1), fx = r.ox + r.dx * r.f, fy = r.oy + r.dy * r.f, half = 130 + r.f * 0.55, nx = -r.dy, ny = r.dx;
+          const a = U.clamp(r.cur / MAXF, 0.25, 1), fx = r.ox + r.dx * r.f, fy = r.oy + r.dy * r.f, half = HALF(r.f), nx = -r.dy, ny = r.dx;
           ctx.lineCap = 'round';
           for (let k = 0; k < 3; k++) {
             const back = 14 + k * 26;
