@@ -22,6 +22,10 @@ Arcade cabinets and attract mode shaped the page:
 - **Cabinet:** a lit **marquee** on top (it changes to each game's colours), a curved **CRT** with scanlines inside a bezel, and a **control deck** with round arcade buttons (Back, Start, Pause, Sound).
 - **Game select in attract mode:** a list you move through with ↑ ↓ or 1–8 (Enter to start) with a live CPU-vs-CPU **demo** of the highlighted game, its original year, the flip, and its **top-5 high scores**. Left alone for 22 seconds, it cycles through the games by itself, like an arcade machine does.
 - **Instruction card** under the screen, like the printed card under the glass on a real cabinet.
+- **Get ready card** before every game: which side you are, your controls, how you win, and a 3-second countdown (Space or a click starts at once).
+- **You play the normal side by default** (snake, bottom paddle, bird, pilot, defender, stacker, picnic); swap sides in one click.
+- **Start at** (a testing aid) on the "Who's playing" screen: jump to a later level or wave instead of playing up to it.
+- **Everything you're waiting on is on screen**: hunger and apple timers, balls left, the builder's allowed gap range and lock countdown, the thrower's energy with each rock's cost, missiles per base and the attacker's reload, the dealer's "before it lands" deadline, Yank's flick meter and crumbs.
 - **High scores with 3-letter initials** (arrow keys or typing), saved in the browser. **Sound effects** from a small chip-style synthesiser (WebAudio, no files), with an M key to mute.
 - **Every game has its own era look** instead of one shared style:
 
@@ -45,6 +49,7 @@ js/engine.js          shared engine: 60 Hz fixed-step loop, input, drawing, huma
 js/cabinet.js         attract-mode game select, demo previews, side pickers, pause/result/initials screens
 js/games/*.js         one file per game (rules, both computer players, drawing)
 imitation/index.html  source of the Imitation artifact (runs inside Claude)
+docs/IMPROVEMENTS.md  Wave 2 improvement log, game by game
 tests/sim.js          headless computer-vs-computer balance test
 tests/browser.mjs     browser smoke test (every game, every role combination)
 netlify.toml          Netlify settings (no build step)
@@ -111,6 +116,7 @@ Everything controlled with a mouse (the apple placer, the thrower, both Missile 
 - **Yank!: difficulty and pull.** Waves follow a sawtooth: each peak a little higher than the last, with a short valley of relief between them, and a gentle start ([Abratabia: difficulty curves](https://www.abratabia.com/game-design/difficulty-curves.php)). Against a person, the computer bugs quietly hold back when the player is struggling and press harder when they're cruising, by changing what they send, never the rules, in the spirit of Hunicke's Hamlet system ([Hunicke & Chapman](https://users.cs.northwestern.edu/~hunicke/pubs/Hamlet.pdf)). Losing narrowly gives the strongest urge to play again ([Larche, Musielak & Dixon, 2017](https://link.springer.com/article/10.1007/s10899-016-9633-7)), so the end screen says how close you came.
 - **Yank!: speed.** An arcade run should last between 30 seconds and 3 minutes, keep the first minute at low intensity, then roughly double the pressure ([Game-Ace: arcade game design](https://game-ace.com/blog/arcade-game-design/)), so a game is 2:00 with 20-second waves, and the bugs' income and speed climb every wave. Waves get harder in more than one way at once (more bugs, faster bugs, tougher bugs) so it doesn't feel like the game just adds enemies ([GameDev.net thread on wave progression](https://www.gamedev.net/topic/627974-zombie-game-wave-difficulty-progression/)). People learn fastest when they succeed about 85% of the time ([Wilson et al., 2019, via Neuroscience News](https://neurosciencenews.com/learning-optimized-15171/)); most single flicks succeed, but a whole game is won by a quick, experienced player only about a third of the time.
 - **Imitation:** AI21's *Human or Not* (2023): 2-minute chats, alternating turns, 100-character messages, 20 seconds per message. Players guessed right 68% of the time: 60% against bots and 73% against people ([Jannai et al., 2023](https://arxiv.org/abs/2305.20010)).
+- **Clear to a new player (Wave 2):** the first usability heuristic is to always show the system's status ([Nielsen Norman Group](https://www.nngroup.com/articles/visibility-system-status/)); game-specific heuristics add "provide users with information on game status" and "provide instructions, training, and help" ([Pinelle, Wong & Stach, CHI 2008](https://course.ccs.neu.edu/is4300f15/ssl/pinelle-chi08.pdf)). Counts you act on (ammo-like) read best where you use them, and status (health-like) in a fixed HUD ([McMaster HUD study](https://gscale.cas.mcmaster.ca/research/empiricalHUDs/)), so missile counts sit on each base, the gap range sits at the pipe, and lives and timers sit in the top bar.
 - **Arcade look:** attract mode, where an idle machine shows gameplay and high scores to draw players in ([TV Tropes: Attract Mode](https://tvtropes.org/pmwiki/pmwiki.php/Main/AttractMode)); game feel from screen shake, flashes and sound ([Jan Willem Nijman, "The Art of Screenshake"](https://www.youtube.com/watch?v=AJdEqssNZ-U)).
 
 The computer players get a little sharper as each game goes on ("warming up"), and the games themselves speed up. So a game starts easy and gets harder whichever side you're on. Fairness rules still apply to both sides: apples must be reachable, gap moves are limited, the dealer can't repeat a piece three times in a row, and speeds and ammo are the same for everyone.
@@ -120,21 +126,22 @@ The computer players get a little sharper as each game goes on ("warming up"), a
 ```bash
 node tests/sim.js snake 40          # 40 computer-vs-computer games, prints who won and how long they lasted
 node tests/skilled.js 60            # Yank: a quick, experienced picnic player against the computer bugs
+LEVEL=4 node tests/sim.js missile 10   # start every game at level/wave 4 (same as the Start at row)
 python3 -m http.server 8765 &       # then:
 node tests/browser.mjs http://localhost:8765/ /tmp   # plays every game in 3 role combos, screenshots, console errors
 ```
 
-Balance results after the arcade redesign (60 computer-vs-computer games each, one run):
+Balance results for Wave 2 (computer vs computer, 60–120 games each; Wave 1 in brackets):
 
 | Game | Result | Typical length |
 |---|---|---|
-| Snake | snake 37% / apples 63% | ~1:55 |
-| Breakout | blue 57% / orange 43% (200-game run: 53/47) | ~0:55 |
-| Splat | flier 22% / builder 78% | ~0:42 |
-| Asteroids | pilot 32% / thrower 68% | ~1:30 |
-| Missile Command | defender 30% / attacker 70% | ~3:45 |
-| Stack & Deal | stacker 53% / dealer 47% | ~2:40 |
-| Yank! | picnic 10% / bugs 90% (40-game run); a quick, experienced player (`node tests/skilled.js 60`) wins 37% | ~1:30 (2:00 if the picnic survives) |
+| Snake | snake 43% / apples 57% (was 37 / 63) | ~2:00 |
+| Breakout | bottom 58% / top 42% (was 57 / 43) | ~0:50 |
+| Splat | bird 48% / builder 52% (was 22 / 78) | ~0:50 |
+| Asteroids | pilot 45% / thrower 55% (was 32 / 68) | ~1:40 |
+| Missile Command | defender 50% / attacker 50% (was 30 / 70) | ~3:45 |
+| Stack & Deal | stacker 53% / dealer 47% (unchanged) | ~2:40 |
+| Yank! | picnic 25% / bugs 75%; a quick, experienced player (`node tests/skilled.js 60`) wins about 1 in 3 against the computer bugs | ~1:45 (2:00 if the picnic survives) |
 
 ## Deploying (GitHub → Netlify → games.bluebid.online)
 

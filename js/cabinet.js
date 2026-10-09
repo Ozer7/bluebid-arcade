@@ -25,6 +25,7 @@
   let sel = 0;                 // highlighted entry on the select screen
   let current = null;          // game being played
   let roles = {};
+  let startLevel = 1;           // testing aid: start at a later level/wave
   let preview = null, runner = null, demoMode = false;
   let idle = 0, idleTimer = 0;
   let nav = null;              // keyboard navigation inside an overlay
@@ -184,7 +185,8 @@
     mode = 'play';
     current = g;
     sel = entries.indexOf(g);
-    roles = Object.assign({}, g.defaults, store.get('roles:' + g.id) || {});
+    roles = Object.assign({}, g.defaults, store.get('roles2:' + g.id) || {});
+    startLevel = 1;
     setMarquee(g);
     renderCard(g);
     selectEl.hidden = true;
@@ -209,12 +211,13 @@
   function startGame() {
     stopRunner();
     demoMode = false;
-    store.set('roles:' + current.id, roles);
+    store.set('roles2:' + current.id, roles);
     hideOverlay();
     Arcade.sfx('start');
     const r = (runner = new Arcade.Runner($('#screen'), current, Object.assign({}, roles), {
       onEnd: res => r === runner && showResult(res),
-      onPause: p => r === runner && (p ? showPause() : hideOverlay())
+      onPause: p => r === runner && (p ? showPause() : hideOverlay()),
+      startLevel
     }));
   }
 
@@ -247,12 +250,16 @@
       <p class="kick">Who's playing?</p>
       <h2>${esc(g.title)}</h2>
       <p>${g.menuText || esc(g.tagline)}</p>
-      <div class="roles">${rows}</div>
+      <div class="roles">${rows}${levelRow(g)}</div>
       <div class="ov-actions">
         <button class="pix-btn primary" type="button" data-nav data-act="start" data-default="1">Start</button>
         <button class="pix-btn" type="button" data-nav data-act="menu">Game select</button>
       </div>`, (k) => {
       const it = nav.items[nav.i];
+      if ((k === 'ArrowLeft' || k === 'ArrowRight') && it.classList.contains('level')) {
+        setLevel(startLevel + (k === 'ArrowRight' ? 1 : -1));
+        return true;
+      }
       if ((k === 'ArrowLeft' || k === 'ArrowRight') && it.classList.contains('role')) {
         const side = it.dataset.side;
         roles[side] = roles[side] === 'human' ? 'cpu' : 'human';
@@ -262,17 +269,38 @@
       }
       return false;
     });
-    ovBox.querySelectorAll('.role .toggle button').forEach(b => b.addEventListener('click', () => {
+    ovBox.querySelectorAll('.role:not(.level) .toggle button').forEach(b => b.addEventListener('click', () => {
       roles[b.closest('.role').dataset.side] = b.dataset.val;
       renderRoleButtons();
       Arcade.sfx('select');
     }));
     ovBox.querySelector('[data-act="start"]').addEventListener('click', startGame);
     ovBox.querySelector('[data-act="menu"]').addEventListener('click', () => { location.hash = ''; });
+    ovBox.querySelectorAll('.level .toggle button').forEach(b => b.addEventListener('click', () => setLevel(startLevel + +b.dataset.step)));
     $('#btnPause').disabled = true;
   }
+  // Level select (a testing aid): start at a later level or wave instead of playing up to it
+  function levelRow(g) {
+    if (!g.levels) return '';
+    return `
+      <div class="role level" data-nav>
+        <span class="rname">Start at</span>
+        <span class="toggle">
+          <button type="button" data-step="-1" aria-label="Earlier">◀</button>
+          <span class="lvl" id="lvlVal">${esc(g.levels.label)} ${startLevel}</span>
+          <button type="button" data-step="1" aria-label="Later">▶</button>
+        </span>
+      </div>`;
+  }
+  function setLevel(n) {
+    if (!current || !current.levels) return;
+    startLevel = Math.max(1, Math.min(current.levels.max, n));
+    const v = ovBox.querySelector('#lvlVal');
+    if (v) v.textContent = `${current.levels.label} ${startLevel}`;
+    Arcade.sfx('select');
+  }
   function renderRoleButtons() {
-    ovBox.querySelectorAll('.role').forEach(r => r.querySelectorAll('button').forEach(b =>
+    ovBox.querySelectorAll('.role:not(.level)').forEach(r => r.querySelectorAll('button').forEach(b =>
       b.setAttribute('aria-pressed', String(roles[r.dataset.side] === b.dataset.val))));
   }
 

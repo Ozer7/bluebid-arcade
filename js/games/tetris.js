@@ -159,7 +159,10 @@
       { key: 'stacker', label: 'Stacker', human: '← → to move, ↑ or X to rotate, Z to rotate back, ↓ soft drop, Space hard drop.', cpu: 'Scores every legal placement (height, holes, bumpiness, lines), plans ahead with the next piece once it gets good, then actually steers the piece there one key-press at a time.' },
       { key: 'dealer', label: 'Dealer', human: 'Click a piece on the right (or press 1–7) to deal the next one. If you haven\'t picked when the current piece lands, it\'s random.', cpu: 'Deals randomly at first. Later it tests each piece against the board and deals the one that fits worst.' }
     ],
-    defaults: { stacker: 'cpu', dealer: 'human' },
+    defaults: { stacker: 'human', dealer: 'cpu' },
+    quick: { stacker: '← → MOVE · ↑ OR X ROTATE · ↓ SOFT DROP · SPACE HARD DROP', dealer: 'CLICK A PIECE ON THE RIGHT (OR PRESS 1–7) BEFORE THE PIECE LANDS' },
+    goals: { stacker: 'CLEAR 30 LINES', dealer: 'MAKE THE STACK REACH THE TOP' },
+    levels: { label: 'Level', max: 8 },
 
     thumb(ctx, w, h) {
       const s = w / W, c = CELL * s * 1.35, ox = 120 * s, oy = 40 * s;
@@ -171,7 +174,7 @@
 
     create(api) {
       let board = emptyBoard();
-      let lines = 0, score = 0;
+      let lines = (api.startLevel - 1) * 4, score = 0;   // level select: 4 lines per level
       let cur = null;            // {name, rot, x, y}
       let next = null;           // dealt by the dealer
       const history = [];        // dealt pieces, newest last
@@ -357,7 +360,7 @@
       /* ---------- computer dealer (plays like a person) ---------- */
       // Deals whatever comes to mind at first; as the game goes on it looks at
       // the board and deals the piece that fits worst more and more often.
-      const dealSkill = () => Math.min(0.6, 0.05 + lines * 0.02);
+      const dealSkill = () => Math.min(0.7, 0.08 + lines * 0.025);
       const dealer = new Arcade.Human({ reaction: 0.3 });
       function cpuDeal(dt) {
         if (next || !cur) return;
@@ -485,6 +488,15 @@
           D.text(ctx, 'NEXT', RX + 16, 44, { size: 8, pixel: true, color: GB[1] });
           if (next) miniPiece(ctx, next, RX + RW / 2, 104, 18);
           else if (Math.floor(api.time * 2.5) % 2) D.text(ctx, api.isHuman('dealer') ? 'PICK ONE' : 'THINKING', RX + RW / 2, 104, { size: 10, pixel: true, color: GB[1], align: 'center' });
+          // a human dealer's deadline: the next piece must be dealt before this one lands, or it's random
+          if (api.isHuman('dealer') && !next && cur) {
+            const gy = dropY(board, cur.name, cur.rot, cur.x, cur.y), span = Math.max(1, gy - SPAWN_Y);
+            const left = U.clamp(1 - (cur.y - SPAWN_Y) / span, 0, 1);
+            D.text(ctx, 'BEFORE IT LANDS', RX + RW / 2, 132, { size: 7, pixel: true, color: GB[0], align: 'center' });
+            ctx.fillStyle = GB[0]; ctx.fillRect(RX + 20, 142, RW - 40, 10);
+            ctx.fillStyle = GB[3]; ctx.fillRect(RX + 22, 144, RW - 44, 6);
+            ctx.fillStyle = left < 0.3 && Math.floor(api.time * 6) % 2 ? GB[2] : GB[0]; ctx.fillRect(RX + 22, 144, (RW - 44) * left, 6);
+          }
 
           if (api.isHuman('dealer')) {
             NAMES.forEach((n, i) => {

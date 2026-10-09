@@ -258,6 +258,7 @@
       this.time = 0;
       this.toasts = [];
       this.acc = 0;
+      this.startLevel = hooks.startLevel || 1;
       this.last = 0;
       this.raf = 0;
 
@@ -265,6 +266,7 @@
       this.api = {
         W, H,
         roles,
+        startLevel: this.startLevel,      // testing aid: the level/wave chosen on the "Who's playing" screen
         isHuman: side => roles[side] === 'human',
         humanCount: () => Object.values(roles).filter(r => r === 'human').length,
         keys: this.keys,
@@ -283,6 +285,9 @@
       };
 
       this.game = def.create(this.api);
+      // "Get ready": before a person plays, show their controls and how to win for 3 seconds
+      // (Pinelle et al., 2008: provide instructions and game-status information)
+      this.ready = def.goals && Object.values(roles).includes('human') ? 3 : 0;
       this._bind();
       this.raf = requestAnimationFrame(t => this._frame(t));
     }
@@ -298,6 +303,7 @@
         if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
         if (GAME_KEYS.includes(e.code)) e.preventDefault();
         if (e.code === 'KeyP' || e.code === 'Escape') { if (this.hooks.onPause) this.togglePause(); return; }
+        if (this.ready > 0) { if (e.code === 'Space' || e.code === 'Enter') this.ready = 0; return; }
         if (!this.keys.has(e.code)) {
           this.keys.add(e.code);
           if (!this.paused && !this.over && this.game.onKey) this.game.onKey(e.code);
@@ -308,6 +314,7 @@
       this._pd = e => {
         const p = this._toGame(e);
         Object.assign(this.pointer, p, { down: true, inside: true });
+        if (this.ready > 0) { this.ready = 0; return; }
         if (!this.paused && !this.over && this.game.onPointer) this.game.onPointer('down', p.x, p.y, e);
       };
       this._pm = e => {
@@ -348,7 +355,8 @@
       let dt = (t - this.last) / 1000;
       this.last = t;
       if (dt > 0.25) dt = 0.25;               // tab was hidden — don't fast-forward
-      if (!this.paused) {
+      if (this.ready > 0 && !this.paused) { this.ready -= dt; if (this.ready <= 0) Arcade.sfx('point'); }
+      else if (!this.paused) {
         this.acc += dt;
         while (this.acc >= STEP) {
           // after game over we keep updating for a moment so explosions finish
@@ -372,6 +380,7 @@
       const ctx = this.ctx;
       ctx.save();
       this.game.draw(ctx);
+      if (this.ready > 0) this._drawReady(ctx);
       // toasts: short arcade-style banners
       let y = H - 44;
       for (const s of this.toasts) {
@@ -386,6 +395,23 @@
         y -= 38;
       }
       ctx.restore();
+    }
+
+    // the "get ready" card: who you are, your controls, how you win, and a countdown
+    _drawReady(ctx) {
+      const def = this.def, humans = def.sides.filter(s => this.roles[s.key] === 'human');
+      const h = 120 + humans.length * 74;
+      const y0 = H / 2 - h / 2;
+      ctx.fillStyle = 'rgba(0,0,0,.84)'; ctx.fillRect(60, y0, W - 120, h);
+      ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.strokeRect(61.5, y0 + 1.5, W - 123, h - 3);
+      Arcade.draw.text(ctx, 'GET READY', W / 2, y0 + 34, { size: 20, pixel: true, align: 'center', color: '#ffd23f' });
+      humans.forEach((s, i) => {
+        const y = y0 + 78 + i * 74;
+        Arcade.draw.text(ctx, `${humans.length > 1 ? `PLAYER ${i + 1}: ` : 'YOU ARE '}${s.label.toUpperCase()}`, W / 2, y, { size: 12, pixel: true, align: 'center', color: '#fff' });
+        if (def.quick && def.quick[s.key]) Arcade.draw.text(ctx, def.quick[s.key], W / 2, y + 22, { size: 9, pixel: true, align: 'center', color: '#9fd8ff' });
+        Arcade.draw.text(ctx, 'TO WIN: ' + def.goals[s.key], W / 2, y + 42, { size: 9, pixel: true, align: 'center', color: '#7bff5a' });
+      });
+      Arcade.draw.text(ctx, `STARTS IN ${Math.ceil(this.ready)}  ·  SPACE OR CLICK TO START NOW`, W / 2, y0 + h - 22, { size: 8, pixel: true, align: 'center', color: '#bbb' });
     }
 
     destroy() {

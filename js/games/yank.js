@@ -103,6 +103,9 @@
       { key: 'bugs', label: 'Bugs', human: 'Crumbs come in over time. Press 1 ant (1 crumb), 2 beetle (4), 3 queen (12), then click the table edge, or press I J K L to send from the top, left, bottom or right. Nothing can be sent in the last 2 seconds of a wave.', cpu: 'Moves its pointer and clicks like a person (you can watch it). Goes after the dish that is easiest to finish, comes in from an edge the hand isn\'t guarding, strikes right after a flick, and sometimes saves up for a big rush.' }
     ],
     defaults: { picnic: 'human', bugs: 'cpu' },
+    quick: { picnic: 'GRAB THE CLOTH: DRAG SLOWLY TO MOVE DISHES, FLICK AND LET GO TO THROW BUGS', bugs: '1 / 2 / 3 PICKS A BUG · CLICK THE TABLE EDGE (OR I J K L) TO SEND IT' },
+    goals: { picnic: 'KEEP 4 OF YOUR 6 DISHES FOR 2:00', bugs: 'GET RID OF 3 DISHES' },
+    levels: { label: 'Wave', max: 6 },
 
     thumb(ctx, w, h) {
       const s = w / W;
@@ -113,7 +116,7 @@
     },
 
     create(api) {
-      let time = 0, playT = 0, wave = 1, over = false, score = 0;
+      let time = 0, playT = (api.startLevel - 1) * WAVE, wave = api.startLevel, over = false, score = 0;
       let ox = 0, oy = 0, pox = 0, poy = 0, cvx = 0, cvy = 0, relT = 0;   // cloth offset and its velocity
       const dishes = LAYOUT.map(([k, x, y]) => Object.assign({ kind: k, x: TCX + x, y: TCY + y, vx: 0, vy: 0, food: 100, alive: true, wob: 0, fall: 0, warned: false, crunch: 0, eating: false }, KINDS[k]));
       let bugs = [], ripples = [], parts = [], floats = [], powers = [];
@@ -127,7 +130,7 @@
       // coaching: first time a human plays the picnic, teach the two moves before any bugs come
       let coached = false;
       try { coached = localStorage.getItem('arcade:yank:coached') === '1'; } catch { /* ignore */ }
-      let coach = api.isHuman('picnic') ? (coached ? { step: 3, t: 0 } : { step: 0, t: 0, acc: 0 }) : null;
+      let coach = api.isHuman('picnic') && api.startLevel === 1 ? (coached ? { step: 3, t: 0 } : { step: 0, t: 0, acc: 0 }) : null;
       const coaching = () => coach && coach.step < 3;
 
       /* ---------- geometry ---------- */
@@ -362,9 +365,9 @@
          • under pressure it moves faster but less accurately, and now and then
            flicks far too hard; after spilling a glass it flicks softer for a while
          • it rescues a dish near the edge with a slow drag, like a person would */
-      const pBrain = new Arcade.Human({ reaction: 0.26 });
+      const pBrain = new Arcade.Human({ reaction: 0.2 });
       let pSteps = [], spillMemory = 0;
-      const pSkill = () => Math.min(0.85, 0.35 + playT / 220);
+      const pSkill = () => Math.min(0.9, 0.75 + playT / 150);
       function threat(b) {
         if (b.state === 'off' || b.state === 'fly' || b.type === 'ladybug' || !onCloth(b.x, b.y)) return -1;
         const d = nearestDish(b);
@@ -434,12 +437,12 @@
         scored.sort((a, b) => b.s - a.s);
         const target = scored[0].b;
         // Hick-Hyman: a simple reaction (~250 ms) plus ~150 ms per doubling of the bugs to choose from
-        wait(pBrain.react() + 0.15 * Math.log2(Math.min(scored.length, 12) + 1) * Math.exp(U.gauss() * 0.2));
+        wait(pBrain.react() + 0.15 * (1 - pSkill() * 0.3) * Math.log2(Math.min(scored.length, 12) + 1) * Math.exp(U.gauss() * 0.2));   // practice speeds up choosing
         // how hard: comfortably above what this bug needs (a person can't judge it exactly)
         const eating = target.state === 'eat';
         let power = target.type === 'ant' ? (eating ? U.rand(680, 900) : spillMemory > 0 ? U.rand(480, 700) : U.rand(550, 800))
           : NEED[target.type] * U.rand(1.05, 1.2);
-        if (U.chance(0.05 + pBrain.pressure * 0.1)) power *= 1.5;               // panic: far too hard
+        if (U.chance(0.03 + pBrain.pressure * 0.06)) power *= 1.5;              // panic: far too hard
         power = U.clamp(power * Math.exp(U.gauss() * 0.15), 300, MAXF);         // no two flicks are the same
         // which way: toward the nearest edge, but a careful player steers clear of glasses and ladybugs
         let dir = null, bestCost = 1e9;
@@ -461,7 +464,7 @@
         const dur = U.clamp(0.151 + U.gauss() * 0.053, 0.08, 0.3);
         const a = dir + U.gauss() * 4.2 * Math.PI / 180 * (1 + pBrain.pressure);
         st.push({ k: 'press', dur: 0.06 }, { k: 'flick', dur, dx: Math.cos(a), dy: Math.sin(a), power, len: Math.min(200, power * dur / 1.875) });
-        wait(U.rand(0.15, 0.35));                                             // a glance at the ripple, while already picking the next bug
+        wait(U.rand(0.1, 0.25));                                              // a glance at the ripple, while already picking the next bug
       }
 
       /* ---------- computer bugs (plays like a person) ----------

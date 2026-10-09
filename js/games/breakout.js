@@ -40,6 +40,9 @@
       { key: 'top', label: 'Player 2 (top)', human: 'Mouse, or A / D (← → too if you\'re the only human). Click or Space to serve.', cpu: 'Same human-like paddle as player 1.' }
     ],
     defaults: { bottom: 'human', top: 'cpu' },
+    quick: { bottom: 'MOUSE OR ← → TO MOVE · CLICK OR SPACE TO SERVE', top: 'MOUSE OR A / D TO MOVE · CLICK OR SPACE TO SERVE' },
+    goals: { bottom: 'GET YOUR BALL PAST THE TOP PADDLE 5 TIMES', top: 'GET YOUR BALL PAST THE BOTTOM PADDLE 5 TIMES' },
+    levels: { label: 'Wall', max: 5 },
 
     thumb(ctx, w, h) {
       const s = w / W;
@@ -56,7 +59,7 @@
     },
 
     create(api) {
-      let level = 1;                 // which wall (a new one appears when one is cleared)
+      let level = api.startLevel;    // which wall (a new one appears when one is cleared); level select can start later
       let levelTimer = 0;
       // 1976 rules: speed steps after 4 hits, after 12 hits, and on first contact with
       // the orange and red rows; plus a small step for each new wall and each long rally
@@ -349,12 +352,13 @@
           // score + balls left: chunky white numerals, like the original's score digits
           const who = k => (api.isHuman(k) ? '1UP' : 'CPU');
           D.text(ctx, String(players.top.score).padStart(3, '0'), 18, H / 2 - 104, { size: 26, pixel: true, color: '#fff' });
-          D.text(ctx, `${who('top')}  BALL ${Math.max(1, LIVES - players.top.lives + 1)}`, 18, H / 2 - 78, { size: 10, pixel: true, color: '#fff' });
+          D.text(ctx, `${who('top')}  BALLS LEFT ${players.top.lives}`, 18, H / 2 - 78, { size: 10, pixel: true, color: '#fff' });
           D.text(ctx, String(players.bottom.score).padStart(3, '0'), 18, H / 2 + 104, { size: 26, pixel: true, color: '#fff' });
-          D.text(ctx, `${api.isHuman('bottom') ? '1UP' : 'CPU'}  BALL ${Math.max(1, LIVES - players.bottom.lives + 1)}`, 18, H / 2 + 78, { size: 10, pixel: true, color: '#fff' });
+          D.text(ctx, `${api.isHuman('bottom') ? '1UP' : 'CPU'}  BALLS LEFT ${players.bottom.lives}`, 18, H / 2 + 78, { size: 10, pixel: true, color: '#fff' });
+          D.text(ctx, 'FIRST TO 0 BALLS LOSES', W - 18, H / 2 + 104, { size: 8, pixel: true, color: '#aaa', align: 'right' });
           D.text(ctx, `WALL ${level}`, W - 18, H / 2 - 104, { size: 10, pixel: true, color: '#fff', align: 'right' });
           for (const b of balls) if (b.stuck && api.isHuman(b.server) && b.serveT < 1.0 && Math.floor(api.time * 2) % 2)
-            D.text(ctx, 'SERVE', players[b.server].x, b.server === 'bottom' ? BOTTOM_Y - 30 : TOP_Y + 30, { size: 10, pixel: true, color: '#fff', align: 'center' });
+            D.text(ctx, 'CLICK OR SPACE TO SERVE', players[b.server].x, b.server === 'bottom' ? BOTTOM_Y - 30 : TOP_Y + 30, { size: 10, pixel: true, color: '#fff', align: 'center' });
 
           // the cellophane overlay
           ctx.save();

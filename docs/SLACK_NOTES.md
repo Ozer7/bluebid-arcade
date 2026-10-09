@@ -11,3 +11,10 @@ Wave 1 cabinet is up at games.bluebid.online. I delegated the build to Claude (a
 4. **Making it feel like an arcade, not a web app.** Each game is drawn in its original's style (Nokia LCD, Atari cellophane Breakout, vector Asteroids, Game Boy Tetris) with the original scoring, and the menu works like an attract screen: live demos, high scores with initials, chip sounds.
 
 Imitation lives as a Claude artifact. Each search waits a random 7–18 seconds, and when two people search at once a coin flip decides whether they're paired or each gets Claude, so neither the wait nor a friend searching gives it away. Chats follow Human or Not's rules: one message each, 100 characters, 20 seconds a turn.
+
+
+# Wave 2 post (course channel)
+
+**Yank!**, my original game for the BlueBid cocktail cabinet: https://games.bluebid.online/#yank
+
+Ants are marching on a picnic. Grab the tablecloth: drag it slowly to move your dishes, or flick it and let go to send a ripple across the cloth that throws bugs off the table (the cloth slides out from under the plates, like the magician's tablecloth trick). Beetles need a hard flick, and a hard flick can spill the lemonade. Keep 4 of your 6 dishes for 2 minutes. The first game teaches you the moves; you can also play the bugs side against the computer. Scores welcome!

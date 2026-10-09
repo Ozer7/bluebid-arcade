@@ -46,7 +46,10 @@
       { key: 'pilot', label: 'Pilot', human: '← → turn, ↑ thrust, Space fire, Shift hyperspace (it can blow you up). Stay near the middle: rocks wrap around the edges.', cpu: 'Notices new rocks a moment late, turns and fires in bursts, only half-leads its shots, panic-escapes when a rock gets close, and is bad at braking. Hyperspace is a last resort.' },
       { key: 'thrower', label: 'Thrower', human: 'Click to hurl a rock from the nearest edge toward that point. 1 / 2 / 3 or the wheel picks small / medium / big. Energy recharges faster each wave.', cpu: 'Saves up and throws bursts at where the ship is, big rocks first; later leads the ship and comes at it from behind.' }
     ],
-    defaults: { pilot: 'cpu', thrower: 'human' },
+    defaults: { pilot: 'human', thrower: 'cpu' },
+    quick: { pilot: '← → TURN · ↑ THRUST · SPACE FIRE · SHIFT HYPERSPACE', thrower: 'CLICK TO THROW A ROCK · 1 / 2 / 3 PICKS THE SIZE' },
+    goals: { pilot: 'SURVIVE 5 WAVES OF 20 SECONDS', thrower: 'DESTROY ALL 4 SHIPS' },
+    levels: { label: 'Wave', max: 5 },
 
     thumb(ctx, w) {
       const s = w / W;
@@ -66,7 +69,7 @@
     },
 
     create(api) {
-      let wave = 1, waveT = 0;
+      let wave = api.startLevel, waveT = 0;        // level select can start at a later wave
       let lives = 4, score = 0;
       let energy = 5, size = 3;
       const ship = { x: W / 2, y: H / 2, vx: 0, vy: 0, a: -Math.PI / 2, alive: true, inv: 2, respawn: 0, thrusting: false };
@@ -77,7 +80,7 @@
       let gameDone = false;
       const stars = Array.from({ length: 70 }, () => ({ x: Math.random() * W, y: Math.random() * H, b: Math.random() }));
 
-      const regen = () => 0.55 + (wave - 1) * 0.2;        // energy per second
+      const regen = () => 0.49 + (wave - 1) * 0.165;        // energy per second
       const maxRocks = () => 6 + wave * 2;
       const speedMul = () => 1 + (wave - 1) * 0.1;
 
@@ -467,14 +470,21 @@
             ctx.restore();
           }
           D.text(ctx, `WAVE ${wave}/${WAVES}`, W / 2, 26, { size: 12, pixel: true, color: VEC, align: 'center' });
-          D.text(ctx, `${Math.ceil(WAVE_TIME - waveT)}`, W / 2, 48, { size: 12, pixel: true, color: VEC, align: 'center' });
+          D.text(ctx, `${Math.ceil(WAVE_TIME - waveT)}S LEFT`, W / 2, 48, { size: 10, pixel: true, color: VEC, align: 'center' });
           // thrower's energy: an outlined vector bar
           D.text(ctx, `THROWER ${who('thrower')}`, W - 24, 26, { size: 8, pixel: true, color: VEC, align: 'right' });
           ctx.strokeRect(W - 184, 38, 160, 10);
           ctx.fillStyle = VEC; ctx.fillRect(W - 182, 40, 156 * (energy / ENERGY_MAX), 6);
+          D.text(ctx, 'ENERGY', W - 190, 43, { size: 7, pixel: true, color: VEC, align: 'right' });
+          // tick marks at what each rock costs, so the bar reads as "what can I throw now"
+          for (const k of [1, 2, 3]) { const x = W - 182 + 156 * (SIZES[k].cost / ENERGY_MAX); ctx.fillStyle = '#ff6a5a'; ctx.fillRect(x, 36, 2, 14); }
           if (api.isHuman('thrower')) {
             const names = { 1: 'SMALL', 2: 'MEDIUM', 3: 'BIG' };
-            [1, 2, 3].forEach((k, i) => D.text(ctx, `${k} ${names[k]}`, W - 300 + i * 100, H - 20, { size: 9, pixel: true, color: k === size ? VEC : '#4a5a78' }));
+            [1, 2, 3].forEach((k, i) => {
+              const n = Math.floor(energy / SIZES[k].cost);
+              D.text(ctx, `${k} ${names[k]} (${SIZES[k].cost}) ×${n}`, W - 440 + i * 150, H - 20, { size: 8, pixel: true, color: k === size ? (n ? VEC : '#ff6a5a') : '#4a5a78' });
+            });
+            D.text(ctx, "READY TO THROW:", W - 450, H - 20, { size: 8, pixel: true, color: '#6f86b0', align: 'right' });
           }
           if (api.isHuman('pilot') && api.time < 4) D.text(ctx, 'SHIFT = HYPERSPACE', W / 2, H - 20, { size: 9, pixel: true, color: '#6f86b0', align: 'center' });
         },

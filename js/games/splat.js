@@ -38,7 +38,10 @@
       { key: 'flier', label: 'Bird', human: 'Space, ↑, W or click to flap. Tap calmly and in rhythm — frantic tapping is how people crash.', cpu: 'Watches the next gap and taps when the bird sinks too low, with human timing wobble. Panics and over-taps when a gap is far above; drops too long when it\'s far below.' },
       { key: 'builder', label: 'Builder', human: 'Move the mouse up/down (or ↑ / ↓) to set the gap of the pipe coming in on the right. It locks when it scrolls in.', cpu: 'Drags its cursor like a mouse: gentle gaps at first, then zig-zags, staircases and the odd mean switch.' }
     ],
-    defaults: { flier: 'cpu', builder: 'human' },
+    defaults: { flier: 'human', builder: 'cpu' },
+    quick: { flier: 'SPACE, ↑, W OR CLICK TO FLAP', builder: 'MOUSE UP / DOWN (OR ↑ ↓) SETS THE NEXT GAP' },
+    goals: { flier: 'FLY THROUGH 30 PIPES', builder: 'MAKE THE BIRD CRASH' },
+    levels: { label: 'Level', max: 6 },
 
     thumb(ctx, w, h) {
       const s = w / W;
@@ -56,11 +59,11 @@
     },
 
     create(api) {
-      let passed = 0;
+      let passed = (api.startLevel - 1) * 5;     // level select starts later (faster, tighter gaps)
       const level = () => 1 + Math.floor(passed / 5);
       const speed = () => 160 + (level() - 1) * 10;
-      const gapH = () => Math.max(145, 195 - (level() - 1) * 9);
-      const maxDelta = () => Math.min(210, 130 + (level() - 1) * 15);
+      const gapH = () => Math.max(155, 205 - (level() - 1) * 8);
+      const maxDelta = () => Math.min(190, 120 + (level() - 1) * 13);
       const gapMin = () => gapH() / 2 + 30;
       const gapMax = () => GROUND - gapH() / 2 - 30;
 
@@ -145,7 +148,7 @@
       // frantically and overshoot, and when it's far below they let the bird
       // fall too long and clip the bottom pipe. Their eyes only jump to the next
       // gap once they're through the current one.
-      const flierSkill = () => U.clamp(0.5 + passed * 0.016, 0.5, 0.92);   // warming up
+      const flierSkill = () => U.clamp(0.58 + passed * 0.016, 0.58, 0.92);   // warming up
       const person = new Arcade.Human({ reaction: 0.24, lapseRate: 0.02 });
       const seen = new Arcade.Lag(1);
       const flier = { taps: [], lastTap: -1, target: 290, targetFor: null, switchAt: 0, comfort: 22 };
@@ -243,6 +246,7 @@
             return;
           }
           if (passed >= TARGET) return;
+          if (api.isHuman('flier') && !started) { bird.y = 280 + Math.sin(api.time * 6) * 6; return; }   // waits for the first flap, like Flappy Bird
           scrollT += dt;
           if (!api.isHuman('builder')) cpuBuilderMove(dt);
 
@@ -327,8 +331,14 @@
             drawColumn(ctx, W - COL_W - 6, pg, gapH(), 0);
             ctx.globalAlpha = 1;
             const lo = Math.max(gapMin(), lastGap - maxDelta()), hi = Math.min(gapMax(), lastGap + maxDelta());
-            ctx.fillStyle = OUTLINE; ctx.fillRect(W - 5, lo, 5, hi - lo);
+            // the range the next gap may use (it can only move so far from the last one), and when it locks
+            ctx.fillStyle = 'rgba(84,56,71,.85)'; ctx.fillRect(W - 9, lo, 9, hi - lo);
+            ctx.fillRect(W - 22, lo - 2, 22, 4); ctx.fillRect(W - 22, hi - 2, 22, 4);
             D.text(ctx, 'NEXT', W - COL_W / 2 - 6, pg, { size: 10, pixel: true, color: '#fff', align: 'center' });
+            if (api.isHuman('builder')) {
+              outlined(ctx, 'ALLOWED', W - 46, Math.max(lo - 14, 64), 9);
+              outlined(ctx, `LOCKS IN ${Math.max(0, untilSpawn).toFixed(1)}S`, W - 70, Math.min(hi + 16, GROUND - 12), 9);
+            }
           }
 
           // ground with scrolling stripes
@@ -381,6 +391,7 @@
 
           // big score, Flappy style (white with a dark outline)
           outlined(ctx, String(passed), W / 2, 70, 40);
+          D.text(ctx, `OF ${TARGET} PIPES`, W / 2, 104, { size: 9, pixel: true, color: '#fff', align: 'center' });
           if (splat) outlined(ctx, 'SPLAT!', W / 2, H / 2 - 40, 44, '#f16e3a');
           if (api.isHuman('flier') && !started && bird.alive) {
             outlined(ctx, 'GET READY', W / 2, 170, 26, '#f8c43a');

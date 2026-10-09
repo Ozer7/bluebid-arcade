@@ -77,15 +77,17 @@
   .verdict{font-family:var(--pixel);font-size:26px;text-align:center;margin:0}
   .verdict.right{color:var(--bright)} .verdict.wrong{color:var(--bad)}
   .blink{animation:cur 1s steps(1) infinite}
+  .mute{font-size:9px;padding:6px 10px;margin-top:10px}
   @media (prefers-reduced-motion:reduce){.typing::after,.blink{animation:none}}
   @media (max-width:480px){.guesses{grid-template-columns:1fr}body{font-size:20px}}
 </style>
 
 <div class="wrap crt">
   <header>
-    <span class="brand">BlueBid Arcade · game 7</span>
+    <span class="brand">BlueBid Arcade · game 8</span>
     <h1>Imitation</h1>
     <p class="lede">Two minutes on the wire with a stranger. Then you guess: person, or Claude?</p>
+    <button class="btn mute" id="muteBtn" type="button" aria-pressed="true">Sound on</button>
   </header>
 
   <!-- LOBBY -->
@@ -179,6 +181,60 @@
 
   let db = null, sample = null;
 
+  /* ---------------- sound: a chip-style synth like the cabinet's (WebAudio, no files) ----------------
+     Silent until the first click or key press (browsers require that); M or the button mutes. */
+  const Sound = {
+    ctx: null,
+    muted: (() => { try { return localStorage.getItem('imitation:muted') === '1'; } catch { return false; } })(),
+    unlock() {
+      try {
+        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+      } catch { this.ctx = null; }
+    },
+    tone(f, dur = 0.08, type = 'square', vol = 0.06, at = 0, to = 0) {
+      const c = this.ctx; if (!c || this.muted) return;
+      const t = c.currentTime + at, o = c.createOscillator(), g = c.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, t);
+      if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+      o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur + 0.02);
+    },
+    noise(dur = 0.05, vol = 0.05, freq = 3000, at = 0) {
+      const c = this.ctx; if (!c || this.muted) return;
+      const t = c.currentTime + at, n = Math.max(1, Math.floor(c.sampleRate * dur));
+      const buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      const src = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain();
+      src.buffer = buf; fl.type = 'bandpass'; fl.frequency.value = freq;
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+      src.connect(fl).connect(g).connect(c.destination); src.start(t); src.stop(t + dur + 0.02);
+    }
+  };
+  const SFX = {
+    coin: () => { Sound.tone(988, 0.07, 'square', 0.07); Sound.tone(1319, 0.22, 'square', 0.07, 0.07); },
+    // touch-tone dialing: each digit is two tones at once (DTMF), as on the modem line
+    dial: () => { const k = [[697, 1209], [770, 1336], [852, 1477], [941, 1336]][Math.floor(Math.random() * 4)]; Sound.tone(k[0], 0.09, 'sine', 0.04); Sound.tone(k[1], 0.09, 'sine', 0.04); },
+    connect: () => { Sound.tone(2100, 0.35, 'sine', 0.04); Sound.noise(0.3, 0.05, 1800, 0.35); Sound.tone(1200, 0.12, 'square', 0.04, 0.7); Sound.tone(1600, 0.2, 'square', 0.04, 0.82); },
+    key: () => Sound.noise(0.012, 0.025, 4000 + Math.random() * 1500),
+    send: () => { for (let i = 0; i < 5; i++) Sound.noise(0.02, 0.06, 2500 + i * 300, i * 0.035); },
+    recv: () => { Sound.tone(660, 0.06, 'square', 0.05); Sound.tone(990, 0.09, 'square', 0.05, 0.07); },
+    myturn: () => Sound.tone(880, 0.06, 'triangle', 0.06),
+    tick: () => Sound.tone(1400, 0.03, 'square', 0.035),
+    low: () => Sound.tone(520, 0.05, 'square', 0.045),
+    bell: () => { Sound.tone(880, 0.9, 'sine', 0.08); Sound.tone(1320, 0.6, 'sine', 0.04); },
+    right: () => [523, 659, 784, 1047].forEach((f, i) => Sound.tone(f, 0.12, 'square', 0.06, i * 0.09)),
+    wrong: () => [392, 330, 262, 196].forEach((f, i) => Sound.tone(f, 0.16, 'triangle', 0.07, i * 0.14))
+  };
+  const sfx = name => { if (Sound.ctx && !Sound.muted) try { SFX[name](); } catch { /* ignore */ } };
+  window.addEventListener('pointerdown', () => Sound.unlock(), { capture: true });
+  window.addEventListener('keydown', () => Sound.unlock(), { capture: true });
+  function renderMute() { $('muteBtn').textContent = Sound.muted ? 'Sound off' : 'Sound on'; $('muteBtn').setAttribute('aria-pressed', String(!Sound.muted)); }
+  function toggleMute() { Sound.muted = !Sound.muted; try { localStorage.setItem('imitation:muted', Sound.muted ? '1' : '0'); } catch { /* unavailable */ } renderMute(); sfx('myturn'); }
+  $('muteBtn').addEventListener('click', toggleMute);
+  window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'm' && !/TEXTAREA|INPUT/.test(e.target.tagName)) toggleMute(); });
+  renderMute();
+
   /* ---------------- per-browser record (convenience only) ---------------- */
   function getRecord() { try { return JSON.parse(localStorage.getItem('imitation:record')) || { right: 0, played: 0 }; } catch { return { right: 0, played: 0 }; } }
   function saveRecord(r) { try { localStorage.setItem('imitation:record', JSON.stringify(r)); } catch { /* unavailable */ } }
@@ -218,6 +274,7 @@
   $('cancelBtn').addEventListener('click', () => { stopSearch(); show('lobby'); });
 
   async function startSearch() {
+    sfx('coin');
     show('searching');
     $('searchText').textContent = 'Searching…';
     $('searchSub').textContent = 'Looking for someone to talk to';
@@ -243,7 +300,9 @@
     const dots = '.'.repeat(1 + (Math.floor(el * 2) % 3));
     $('searchText').textContent = 'Searching' + dots;
     const lines = ['ATDT 555-0150', 'DIALING' + dots, 'CARRIER DETECT' + dots, 'HANDSHAKE 1200 BAUD' + dots, 'WAITING FOR PARTY' + dots];
-    $('modem').textContent = lines.slice(0, 1 + Math.min(lines.length - 1, Math.floor(el / 1.5))).join('\n');
+    const shown = 1 + Math.min(lines.length - 1, Math.floor(el / 1.5));
+    if (shown !== s.shown) { s.shown = shown; sfx('dial'); }
+    $('modem').textContent = lines.slice(0, shown).join('\n');
     if (el > 5) $('searchSub').textContent = 'Still looking… ' + Math.floor(el) + 's';
     if (Date.now() - s.start >= s.revealAt) {
       if (s.paired && s.paired.mode === 'human') return foundMatch(s, 'human');
@@ -300,6 +359,7 @@
     const paired = s.paired;
     stopSearch();
     $('searchText').textContent = 'Match found';
+    sfx('connect');
     $('searchSub').textContent = 'Connecting…';
     setTimeout(() => startRound(kind, paired), rand(600, 1400));
   }
@@ -340,6 +400,7 @@
     const early = Math.max(0, EARLY - el);
     $('earlyBtn').disabled = early > 0;
     $('earlyBtn').textContent = early > 0 ? `Guess now (${Math.ceil(early)}s)` : 'Guess now';
+    if (left <= 10 && Math.ceil(left) !== r.lowSec) { r.lowSec = Math.ceil(left); sfx('low'); }   // last 10 seconds
     if (left <= 0) return endChat();
     if (r.kind === 'human' && !r.oppSeen && el > 20) {
       r.oppSeen = true;
@@ -360,12 +421,13 @@
       r.lastTurnKey = key; r.turnStart = Date.now();
       const mine = myTurn();
       $('msgInput').disabled = !mine; $('sendBtn').disabled = !mine;
-      if (mine) $('msgInput').focus();
+      if (mine) { $('msgInput').focus(); if (key > 0) sfx('myturn'); }
       if (!mine && r.kind === 'ai') aiTakeTurn();
     }
     const t = Math.max(0, TURN - (Date.now() - r.turnStart) / 1000);
     if (myTurn()) {
       $('turn').textContent = `YOUR TURN · ${Math.ceil(t)}s`; $('turn').className = 'turn mine';
+      if (t <= 5 && t > 0 && Math.ceil(t) !== r.tickSec) { r.tickSec = Math.ceil(t); sfx('tick'); }   // hurry: 5 s left
       if (t <= 0) sendMine(null);                // time's up: the turn passes
     } else {
       $('turn').textContent = 'THEIR TURN'; $('turn').className = 'turn theirs';
@@ -405,6 +467,7 @@
     const r = round;
     $('msgInput').value = ''; $('count').textContent = '0/' + MAX_LEN;
     r.mine.push(text ? { t: Date.now(), text } : { t: Date.now(), text: '', skip: true });
+    if (text) sfx('send');
     render();
     if (r.kind === 'human') { pushMine({ typing: false }); r.typingSent = false; }
     turnTick();
@@ -413,6 +476,7 @@
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('sendForm').requestSubmit(); }
   });
   $('msgInput').addEventListener('input', () => {
+    sfx('key');
     $('count').textContent = $('msgInput').value.length + '/' + MAX_LEN;
     if (!round || round.kind !== 'human') return;
     const typing = $('msgInput').value.trim().length > 0;
@@ -429,6 +493,7 @@
     if (r.ai) clearTimeout(r.ai.timer);
     $('msgInput').disabled = true;
     $('sendBtn').disabled = true;
+    sfx('bell');
     show('guessPanel');
   }
 
@@ -441,6 +506,7 @@
     const right = g === r.kind;
     const rec = getRecord(); rec.played++; if (right) rec.right++; saveRecord(rec); showRecord();
     $('verdict').textContent = right ? 'Correct' : 'Fooled';
+    sfx(right ? 'right' : 'wrong');
     $('verdict').className = 'verdict ' + (right ? 'right' : 'wrong');
     $('revealText').textContent = r.kind === 'human'
       ? 'You were talking to a real person in another browser.'
@@ -479,7 +545,7 @@
       const v = d.data();
       r.oppSeen = true;
       const msgs = Array.isArray(v.msgs) ? v.msgs.filter(m => m && typeof m.text === 'string').map(m => ({ t: +m.t || 0, text: String(m.text).slice(0, MAX_LEN), skip: !!m.skip })) : [];
-      if (msgs.length !== r.theirs.length) { r.theirs = msgs; render(); }
+      if (msgs.length !== r.theirs.length) { if (msgs.length > r.theirs.length && !msgs[msgs.length - 1].skip) sfx('recv'); r.theirs = msgs; render(); }
       $('typing').hidden = !(v.typing && !r.done);
       if (v.guess === 'human' || v.guess === 'ai') { r.theirGuess = v.guess; showTheirGuess(); }
     }, () => addSys('Lost connection to the other player.'));
@@ -584,6 +650,7 @@ Reply with ONLY your next message text.`;
     if (!r || r.done || myTurn()) return;
     $('typing').hidden = true;
     r.theirs.push({ t: Date.now(), text: text.slice(0, MAX_LEN) });
+    sfx('recv');
     render();
     turnTick();
   }

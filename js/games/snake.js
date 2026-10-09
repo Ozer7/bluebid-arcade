@@ -118,7 +118,10 @@
       { key: 'snake', label: 'Snake', human: 'Arrow keys or WASD to steer. Each apple is worth 10 × the level.', cpu: 'Plays like a person: heads for the apple on an L-shaped route, turns early before walls, hugs the edges when long, and sometimes turns a step late or misjudges a dead end.' },
       { key: 'apples', label: 'Apples', human: 'Click an empty cell to drop the next apple (it must be reachable and 3+ cells away). Trap the snake behind its own body to starve it.', cpu: 'Mostly drops apples "somewhere far away"; as the game goes on, tucks them behind the body or into corners more often.' }
     ],
-    defaults: { snake: 'cpu', apples: 'human' },
+    defaults: { snake: 'human', apples: 'cpu' },
+    quick: { snake: 'ARROW KEYS OR WASD TO STEER', apples: 'CLICK AN EMPTY CELL TO DROP THE NEXT APPLE' },
+    goals: { snake: 'EAT 30 APPLES', apples: 'MAKE THE SNAKE CRASH OR STARVE' },
+    levels: { label: 'Level', max: 6 },
 
     thumb(ctx, w, h) {
       ctx.fillStyle = LCD; ctx.fillRect(0, 0, w, h);
@@ -144,7 +147,7 @@
       let queue = [];
       let grow = 0;
       let stepAcc = 0;
-      let eaten = 0;
+      let eaten = (api.startLevel - 1) * 5;          // level select starts later, at that level's speed
       let apple = null;
       let placeLeft = placeWindow();
       let cpuThink = U.rand(0.6, 1.2);
@@ -172,7 +175,7 @@
         api.sfx('blip', { f: 520 });
         const p = bfs(snake, grow, apple);
         const len = p ? p.length : Math.abs(snake[0].x - x) + Math.abs(snake[0].y - y);
-        hungerMax = hunger = stepTime() * (len * 2 + 22);
+        hungerMax = hunger = stepTime() * (len * 2.2 + 28);
         flash = 0.35;
       }
 
@@ -230,7 +233,7 @@
       // What a player gets wrong: turns a step late when the snake is fast,
       // occasionally isn't paying attention, and misjudges big enclosed areas —
       // so it dies the way people die, by boxing itself in or clipping a wall.
-      const lateChance = () => U.clamp(0.1 + (0.15 / stepTime() - 1) * 0.2, 0.1, 0.34);
+      const lateChance = () => U.clamp(0.06 + (0.15 / stepTime() - 1) * 0.15, 0.06, 0.24);
 
       function occupiedAt(x, y) {
         if (!inside(x, y)) return true;
@@ -457,9 +460,11 @@
           // status line, phone style
           const who = side => (api.isHuman(side) ? 'YOU' : 'CPU');
           D.text(ctx, String(score).padStart(4, '0'), 12, 24, { size: 18, pixel: true, color: INK });
-          D.text(ctx, `${eaten}/${TARGET}`, api.W / 2 - 110, 24, { size: 12, pixel: true, color: INK, align: 'center' });
-          D.text(ctx, `LV${1 + Math.floor(eaten / 5)}`, api.W / 2 - 20, 24, { size: 12, pixel: true, color: INK, align: 'center' });
-          D.text(ctx, `SNAKE:${who('snake')} FOOD:${who('apples')}`, api.W - 12, 24, { size: 10, pixel: true, color: INK, align: 'right' });
+          D.text(ctx, `APPLES ${eaten}/${TARGET}`, api.W / 2 - 170, 24, { size: 10, pixel: true, color: INK, align: 'center' });
+          D.text(ctx, `LV${1 + Math.floor(eaten / 5)}`, api.W / 2 - 70, 24, { size: 10, pixel: true, color: INK, align: 'center' });
+          // label the bar: what it counts down to
+          D.text(ctx, apple ? 'HUNGER' : 'NEXT APPLE', api.W / 2 + 34, 24, { size: 8, pixel: true, color: INK, align: 'right' });
+          D.text(ctx, `SNAKE:${who('snake')} FOOD:${who('apples')}`, api.W - 12, 24, { size: 8, pixel: true, color: INK, align: 'right' });
           // hunger (or the placement countdown) as a segmented bar
           const t = apple ? hunger / hungerMax : placeLeft / placeWindow();
           const segs = 12, filled = Math.ceil(U.clamp(t, 0, 1) * segs);
@@ -468,7 +473,13 @@
             ctx.fillRect(api.W / 2 + 40 + i * 9, 16, 7, 14);
           }
           ctx.globalAlpha = 1;
-          if (!apple && api.isHuman('apples')) D.text(ctx, 'PLACE FOOD!', api.W / 2 + 200, 24, { size: 10, pixel: true, color: INK });
+          // the human placer's turn: say what to do, and how long is left before it's random
+          if (!apple && api.isHuman('apples') && !dead) {
+            const left = Math.max(0, placeLeft);
+            ctx.fillStyle = LCD; ctx.globalAlpha = 0.9; ctx.fillRect(api.W / 2 - 230, TOP + 8, 460, 30); ctx.globalAlpha = 1;
+            ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.strokeRect(api.W / 2 - 230, TOP + 8, 460, 30);
+            D.text(ctx, `CLICK A CELL TO DROP AN APPLE · ${left.toFixed(1)}S`, api.W / 2, TOP + 24, { size: 10, pixel: true, color: INK, align: 'center' });
+          }
         },
 
         score: () => score,

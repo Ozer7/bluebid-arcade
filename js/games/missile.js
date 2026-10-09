@@ -51,7 +51,10 @@
       { key: 'defender', label: 'Defender', human: 'Click in the sky: the nearest base fires and the blast goes off at the crosshair. Aim a little ahead of each missile. Don\'t waste shots on missiles heading for rubble.', cpu: 'Notices each missile a moment late, moves its crosshair at human mouse speed, usually aims not quite far enough ahead, and re-fires when a shot misses. You can watch its crosshair move.' },
       { key: 'attacker', label: 'Attacker', human: 'Click near a city or base to launch at it. You get a missile budget each wave. From wave 3, every third missile splits in two.', cpu: 'Picks a city and sends a few missiles at it at a person\'s clicking pace, then switches; later knocks out bases first.' }
     ],
-    defaults: { defender: 'cpu', attacker: 'human' },
+    defaults: { defender: 'human', attacker: 'cpu' },
+    quick: { defender: 'CLICK IN THE SKY: THE NEAREST BASE FIRES THERE', attacker: 'CLICK NEAR A CITY OR BASE TO LAUNCH AT IT' },
+    goals: { defender: 'KEEP ONE CITY STANDING THROUGH 7 WAVES', attacker: 'DESTROY ALL 6 CITIES' },
+    levels: { label: 'Wave', max: 7 },
 
     thumb(ctx, w, h) {
       const s = w / W, p = PALS[0];
@@ -64,7 +67,7 @@
     },
 
     create(api) {
-      let wave = 1;
+      let wave = api.startLevel;                  // level select can start at a later wave
       let phase = 'intro', phaseT = 2.2;          // intro → play → intro ...
       const cities = CITY_X.map(x => ({ x, alive: true }));
       const bats = BAT_X.map((x, i) => ({ x, i, ammo: AMMO, alive: true }));
@@ -78,7 +81,7 @@
       const pal = () => PALS[Math.min(PALS.length - 1, wave - 1)];
       const stars = Array.from({ length: 60 }, () => ({ x: Math.random() * W, y: Math.random() * 380, b: Math.random() }));
 
-      const budgetFor = w => 8 + Math.round(w * 2.4);
+      const budgetFor = w => 8 + Math.round(w * 2.3);
       const mSpeed = () => 39 + wave * 9.5;
       const maxInFlight = () => 4 + wave;
       const reloadTime = () => Math.max(0.25, 0.55 - wave * 0.04);
@@ -389,19 +392,29 @@
             ctx.setLineDash([]);
           }
 
+          // missiles left in each base, written on the mound
+          for (const bt of bats) if (bt.alive) D.text(ctx, String(bt.ammo), bt.x, GROUND + 20, { size: 10, pixel: true, align: 'center', color: '#000' });
+
           // HUD: score and multiplier, the original's way
           const who = k => (api.isHuman(k) ? '1UP' : 'CPU');
           D.text(ctx, String(score), 24, 22, { size: 16, pixel: true, color: '#ff3b3b' });
           D.text(ctx, `DEFENDER ${who('defender')}`, 24, 44, { size: 8, pixel: true, color: '#9fb4ff' });
           D.text(ctx, `${mult()}×`, W / 2, 22, { size: 14, pixel: true, color: '#fff', align: 'center' });
           D.text(ctx, `WAVE ${wave}/${WAVES}`, W / 2, 44, { size: 8, pixel: true, color: '#9fb4ff', align: 'center' });
-          D.text(ctx, `${budget} LEFT`, W - 24, 22, { size: 12, pixel: true, color: P.missile, align: 'right' });
+          D.text(ctx, `MISSILES ${budget}`, W - 24, 22, { size: 12, pixel: true, color: P.missile, align: 'right' });
+          // the human attacker's reload: shows when the next launch is ready
+          if (api.isHuman('attacker') && phase === 'play') {
+            const ready = reload <= 0 && budget > 0 && missiles.length < maxInFlight();
+            ctx.strokeStyle = '#9fb4ff'; ctx.lineWidth = 1; ctx.strokeRect(W - 124, 56, 100, 6);
+            ctx.fillStyle = ready ? '#7bff5a' : P.missile; ctx.fillRect(W - 123, 57, 98 * (1 - U.clamp(reload / reloadTime(), 0, 1)), 4);
+            D.text(ctx, ready ? 'READY' : budget <= 0 ? 'NONE LEFT' : reload > 0 ? 'RELOADING' : 'TOO MANY IN AIR', W - 130, 59, { size: 7, pixel: true, color: '#9fb4ff', align: 'right' });
+          }
           D.text(ctx, `ATTACKER ${who('attacker')}`, W - 24, 44, { size: 8, pixel: true, color: '#9fb4ff', align: 'right' });
           if (api.isHuman('attacker') && api.isHuman('defender'))
             D.text(ctx, 'LEFT CLICK DEFENDS · RIGHT/SHIFT CLICK ATTACKS', W / 2, 70, { size: 8, pixel: true, color: '#9fb4ff', align: 'center' });
 
           if (phase === 'intro' && !gameOver && Math.floor(api.time * 3) % 3) {
-            D.text(ctx, 'DEFEND', W / 2, H / 2 - 60, { size: 26, pixel: true, align: 'center', color: '#3f7cff' });
+            D.text(ctx, api.isHuman('attacker') && !api.isHuman('defender') ? 'DESTROY' : 'DEFEND', W / 2, H / 2 - 60, { size: 26, pixel: true, align: 'center', color: '#3f7cff' });
             D.text(ctx, 'CITIES', W / 2, H / 2 - 20, { size: 26, pixel: true, align: 'center', color: '#3f7cff' });
             D.text(ctx, `${mult()} × POINTS`, W / 2, H / 2 + 30, { size: 14, pixel: true, align: 'center', color: '#fff' });
             if (wave === 3) D.text(ctx, 'WARHEADS NOW SPLIT', W / 2, H / 2 + 62, { size: 10, pixel: true, align: 'center', color: P.missile });

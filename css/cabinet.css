@@ -188,3 +188,6 @@ button{font-family:inherit;color:inherit}
 @media (prefers-reduced-motion:reduce){
   .blink,.blink-slow,.demo-tag,.scanlines,.initials span[data-on="true"],.game-list button[aria-current="true"] .no::before{animation:none}
 }
+
+/* level select (testing aid) */
+.role.level .lvl{display:inline-block;min-width:7.5em;text-align:center;font-family:var(--pixel);font-size:10px}
