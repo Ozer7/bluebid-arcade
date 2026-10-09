@@ -4,13 +4,13 @@
    the tablecloth: a slow drag carries everything on it, a fast flick slides
    the cloth out from under the dishes (inertia, like the magician's trick)
    and sends a ripple across it that throws bugs off the table.
-   Picnic wins by keeping at least 4 of its 6 dishes for 2:30. Bugs win
+   Picnic wins by keeping at least 4 of its 6 dishes for 2:00. Bugs win
    when 3 dishes are eaten, spilled or knocked off.
 
    Rules for both sides (human and computer alike):
      • ants need a flick of 350+, beetles 1000+, the queen 1300+;
-       a bug that is already eating holds on 1.5× tighter
-     • a flick harder than 950 tips over any lemonade glass in its path
+       an ant that is already eating holds on 1.5× tighter
+     • a flick harder than 1150 tips over any lemonade glass in its path
      • the bugs side spends crumbs that come in at a fixed rate:
        ant 1, beetle 4 (from wave 2), queen 12 (from wave 3)
    Both computer players use Arcade.Human, so they react, aim and move the
@@ -27,12 +27,13 @@
   const MAXOFF = 80;                                        // how far the cloth can be pulled
   const MAXF = 1800;                                        // strongest flick, px/s
   const NEED = { ant: 350, beetle: 1000, queen: 1300, ladybug: 350 };
-  const GLASS_TIPS = 950;
+  const GLASS_TIPS = 1150;
   const COST = { ant: 1, beetle: 4, queen: 12 };
   const PTS = { ant: 10, beetle: 50, queen: 150 };
-  const SURVIVE = 150;                                      // seconds the picnic must last
+  const SURVIVE = 120;                                      // seconds the picnic must last (an arcade run: 30 s – 3 min)
+  const WAVE = 20;                                          // seconds per wave
   const LOSE_AT = 3;                                        // dishes gone when the bugs win
-  const INCOME = w => 1.35 + 0.4 * (w - 1);                 // crumbs per second
+  const INCOME = w => 0.9 + 0.3 * (w - 1);                 // crumbs per second: pressure roughly triples over the run
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // dishes: grip = cloth speed (px/s) above which the cloth slides out from under them
@@ -41,9 +42,9 @@
     pie: { r: 30, grip: 300, sturdy: 1300, name: 'pie' },
     sand: { r: 28, grip: 330, sturdy: 1250, name: 'sandwiches' },
     melon: { r: 28, grip: 330, sturdy: 1250, name: 'watermelon' },
-    glass: { r: 15, grip: 420, sturdy: GLASS_TIPS, name: 'lemonade' }
+    glass: { r: 15, grip: 240, sturdy: GLASS_TIPS, name: 'lemonade' }    // a smooth glass base slides easily
   };
-  const LAYOUT = [['cake', 0, 4], ['pie', -122, -128], ['sand', 122, -128], ['melon', -122, 136], ['glass', 128, 146], ['glass', 0, -190]];
+  const LAYOUT = [['cake', 0, 4], ['pie', -122, -128], ['sand', 122, -128], ['melon', -122, 136], ['glass', 128, 146], ['glass', 0, -165]];
   const POWERS = {
     pepper: { label: 'PEPPER', desc: 'Bugs nearby run away', col: '#3a3a3a' },
     refill: { label: 'REFILL', desc: 'Every dish topped up', col: '#e8c21f' },
@@ -95,11 +96,11 @@
     scoreSide: 'picnic', scoreName: 'points',
     tagline: 'Flick the tablecloth to throw bugs off the picnic table.',
     flip: 'you send the bugs, the computer flicks the cloth.',
-    blurb: 'My own game. The picnic side grabs the tablecloth: slow drags move the dishes, fast flicks send a ripple that throws bugs off the table. The bugs side spends crumbs to send ants, beetles and a queen. The picnic wins by keeping 4 of its 6 dishes for 2:30.',
-    menuText: 'The picnic wins by keeping <b>4 of its 6 dishes for 2:30</b>. The bugs win when <b>3 dishes are gone</b>. Ants need a flick of 350, beetles 1000, the queen 1300 (more once they\'re eating), and a flick over 950 tips over the lemonade.',
+    blurb: 'My own game. The picnic side grabs the tablecloth: slow drags move the dishes, fast flicks send a ripple that throws bugs off the table. The bugs side spends crumbs to send ants, beetles and a queen. The picnic wins by keeping 4 of its 6 dishes for 2:00.',
+    menuText: 'The picnic wins by keeping <b>4 of its 6 dishes for 2:00</b>. The bugs win when <b>3 dishes are gone</b>. Ants need a flick of 350, beetles 1000, the queen 1300 (ants hold on tighter once they\'re eating), and a flick over 1150 tips over the lemonade.',
     sides: [
-      { key: 'picnic', label: 'Picnic', human: 'Grab the cloth with the mouse. Drag slowly to move dishes; drag fast toward a bug and let go to flick. Keys: arrows move the hand, hold Space to grab, let go to flick. Click a power-up to use it. Don\'t flick the ladybugs.', cpu: 'Notices a bug a reaction-time late, moves its hand there at mouse speed, and flicks toward the nearest edge. It often flicks harder than it needs to, and under pressure it can spill the lemonade.' },
-      { key: 'bugs', label: 'Bugs', human: 'Crumbs come in over time. Press 1 ant (1 crumb), 2 beetle (4), 3 queen (12), then click the table edge, or press I J K L to send from the top, left, bottom or right.', cpu: 'Watches where the hand is and sends ants from the far side in short trails, saves up for beetles from wave 2 and for a queen from wave 3.' }
+      { key: 'picnic', label: 'Picnic', human: 'Grab the cloth with the mouse. Drag slowly to move dishes; drag fast toward a bug and let go to flick. Hit a bug with the middle of the ripple for full strength. Keys: arrows move the hand, hold Space to grab, let go to flick. Click a power-up to use it. Don\'t flick the ladybugs.', cpu: 'Takes longer to decide when more bugs are coming, moves its hand like a mouse (a fast movement, then often a small correction), and flicks in about 150 ms, a few degrees off and never the same strength twice. Under pressure it rushes and sometimes flicks far too hard; after spilling the lemonade it goes softer for a while. It pulls dishes back from the edge with a slow drag.' },
+      { key: 'bugs', label: 'Bugs', human: 'Crumbs come in over time. Press 1 ant (1 crumb), 2 beetle (4), 3 queen (12), then click the table edge, or press I J K L to send from the top, left, bottom or right. Nothing can be sent in the last 2 seconds of a wave.', cpu: 'Moves its pointer and clicks like a person (you can watch it). Goes after the dish that is easiest to finish, comes in from an edge the hand isn\'t guarding, strikes right after a flick, and sometimes saves up for a big rush.' }
     ],
     defaults: { picnic: 'human', bugs: 'cpu' },
 
@@ -202,11 +203,84 @@
         const ex = o.x - r.ox, ey = o.y - r.oy, s = ex * r.dx + ey * r.dy, perp = Math.abs(ex * r.dy - ey * r.dx);
         return s > r.f - 26 && s < r.f + 26 && perp < 130 + r.f * 0.55;
       }
+      // a ripple is strongest along its centre line and fades toward its sides
+      function strength(r, o) {
+        const perp = Math.abs((o.x - r.ox) * r.dy - (o.y - r.oy) * r.dx);
+        return r.cur * (1 - 0.55 * Math.min(1, perp / (130 + r.f * 0.55)));
+      }
 
       /* ---------- bugs ---------- */
+      // Ant behaviour follows field studies of foraging ants: scouts wander
+      // until they find food, then the path they took becomes a scent trail
+      // that later ants follow in a line; an ant that finds food recruits the
+      // searchers near it; walking speed varies a lot from ant to ant (about
+      // 1.07 ± 0.45 m/min in Argentine ants, sped up here like a time-lapse);
+      // and ants stop for a moment every few seconds.
+      let trails = [];                                            // scent trails: {pts:[{x,y}], dish, str}
+      const BASE_SP = { ant: 44, beetle: 34, queen: 24, ladybug: 38 };
+      const SIZE = { ant: 5, beetle: 9, queen: 12, ladybug: 7 };
       function makeBug(type, x, y) {
-        const sp = { ant: U.rand(30, 42), beetle: U.rand(22, 26), queen: U.rand(16, 19), ladybug: U.rand(26, 32) }[type] * (1 + (wave - 1) * 0.08);
-        return { type, x, y, vx: 0, vy: 0, state: 'walk', t: 0, ang: Math.atan2(TCY - y, TCX - x), sp, r: { ant: 5, beetle: 9, queen: 12, ladybug: 7 }[type], dish: null, ea: 0, chain: 1, spin: 0, leg: U.rand(0, 7), life: 14, spawnT: 4 };
+        const spread = type === 'ant' ? 0.35 : 0.08;              // ants differ a lot in speed; beetles hardly
+        const sp = U.clamp(BASE_SP[type] * Math.exp(U.gauss() * spread - spread * spread / 2), BASE_SP[type] * 0.5, BASE_SP[type] * 1.8) * (1 + (wave - 1) * 0.1);
+        const b = { type, x, y, vx: 0, vy: 0, state: 'walk', t: 0, ang: Math.atan2(TCY - y, TCX - x), sp, r: SIZE[type], dish: null, ea: 0, chain: 1, spin: 0, leg: U.rand(0, 7), life: 14, spawnT: 4,
+          trail: null, used: null, ti: 0, path: null, goal: null, pause: U.rand(1, 4) };
+        if (type === 'ant') joinTrail(b);
+        return b;
+      }
+      // an ant arriving near the start of a fresh scent trail follows it; otherwise it scouts
+      function joinTrail(b) {
+        let best = null, bd = 70;
+        for (const t of trails) {
+          if (t.str < 0.2 || !t.dish.alive) continue;
+          const d = U.dist(b.x, b.y, t.pts[0].x, t.pts[0].y);
+          if (d < bd) { bd = d; best = t; }
+        }
+        b.trail = best; b.used = best; b.ti = 0; b.goal = best ? best.dish : null;
+        b.path = best ? null : [{ x: b.x, y: b.y }];
+      }
+      function lost(b) {                                          // knocked off its trail: start searching again
+        b.state = 'walk'; b.dish = null; b.goal = null; b.trail = null; b.used = null;
+        if (b.type === 'ant') b.path = [{ x: b.x, y: b.y }];
+      }
+      function walk(b, dt) {
+        if (b.type === 'ant') {                                   // stop-and-go
+          b.pause -= dt;
+          if (b.pause < 0) { if (b.pause < -U.rand(0.15, 0.45)) b.pause = U.rand(1.5, 4.5); return; }
+        }
+        let tx, ty, wander;
+        const t = b.trail;
+        if (t && (t.str < 0.15 || !t.dish.alive)) b.trail = null;
+        if (b.trail) {
+          const p = b.trail.pts[b.ti];
+          tx = p.x; ty = p.y; wander = 0.15;
+          if (U.dist(b.x, b.y, tx, ty) < 9 && ++b.ti >= b.trail.pts.length) b.trail = null;
+        } else {
+          const d = b.goal && b.goal.alive ? b.goal : nearestDish(b);
+          if (!d) return;
+          b.goal = d; tx = d.x; ty = d.y;
+          wander = b.path ? 0.9 : b.type === 'ant' ? 0.3 : 0.12;     // scouts zig-zag while they search
+        }
+        // correlated random walk: turn partly toward where it's going, plus noise
+        b.ang += U.angleDiff(b.ang, Math.atan2(ty - b.y, tx - b.x)) * Math.min(1, dt * (b.path ? 2.2 : 6)) + U.gauss() * wander * Math.sqrt(dt) * 2;
+        b.x += Math.cos(b.ang) * b.sp * dt; b.y += Math.sin(b.ang) * b.sp * dt;
+        if (b.path) { const l = b.path[b.path.length - 1]; if (U.dist(b.x, b.y, l.x, l.y) > 12) b.path.push({ x: b.x, y: b.y }); }
+        const d = b.goal;
+        if (d && d.alive && U.dist(b.x, b.y, d.x, d.y) < d.r + 4) arrive(b, d);
+      }
+      function arrive(b, d) {
+        b.state = 'eat'; b.dish = d; b.trail = null;
+        // spread out around the dish instead of piling up
+        const taken = bugs.filter(o => o !== b && o.state === 'eat' && o.dish === d).map(o => o.ea);
+        let ea = Math.atan2(b.y - d.y, b.x - d.x);
+        for (let k = 0; k < 8 && taken.some(a => Math.abs(U.angleDiff(a, ea)) < 0.45); k++) ea += 0.5 * (k + 1) * (k % 2 ? -1 : 1);
+        b.ea = ea;
+        if (b.type !== 'ant') return;
+        if (b.used) b.used.str = Math.min(1, b.used.str + 0.25);     // walking the trail refreshes its scent
+        if (b.path) {                                               // a scout found food: its path becomes a trail
+          if (b.path.length > 2) trails.push({ pts: b.path, dish: d, str: 1 });
+          b.path = null;
+          for (const o of bugs) if (o.type === 'ant' && o.state === 'walk' && o.path && U.dist(o.x, o.y, b.x, b.y) < 140) o.goal = d;   // recruitment
+        }
       }
       // a point just inside the table edge: side 0 top, 1 right, 2 bottom, 3 left
       function edgePoint(side, along = Math.random()) {
@@ -216,6 +290,7 @@
         if (side === 2) return { x: TB.x + 20 + along * (TB.w - 40), y: TB.y + TB.h - m };
         return { x: TB.x + m, y: TB.y + 20 + along * (TB.h - 40) };
       }
+      const edgeDist = o => Math.min(o.x - TB.x, TB.x + TB.w - o.x, o.y - TB.y, TB.y + TB.h - o.y);
       function nearestDish(b) {
         let best = null, bd = 1e9;
         for (const d of dishes) { if (!d.alive) continue; const dd = U.dist(d.x, d.y, b.x, b.y); if (dd < bd) { bd = dd; best = d; } }
@@ -230,11 +305,18 @@
         api.sfx('brick', { f: 500 + Math.min(b.chain, 10) * 110 });
       }
 
+      /* ---------- waves: a sawtooth ----------
+         Each wave is 20 s. In the last 2 s the bugs regroup (nobody can send
+         any), so every peak is followed by a short breather and the next wave
+         starts with a burst; each peak is a little higher than the last. */
+      const breather = () => !coaching() && playT % WAVE > WAVE - 2;
+
       /* ---------- shared bugs action: spend crumbs to send a bug ---------- */
-      let crumbs = 3, pick = 'ant', queue = [];
+      let crumbs = 6, pick = 'ant';
       const unlocked = t => (t === 'ant' || (t === 'beetle' && wave >= 2) || (t === 'queen' && wave >= 3));
       function send(type, side, along) {
         if (over || coaching()) return false;
+        if (breather()) { if (api.isHuman('bugs')) api.toast('The bugs regroup: wait for the next wave'); return false; }
         if (!unlocked(type)) { if (api.isHuman('bugs')) api.toast(type === 'beetle' ? 'Beetles from wave 2' : 'Queen from wave 3'); return false; }
         if (crumbs < COST[type]) { if (api.isHuman('bugs')) api.toast('Not enough crumbs'); return false; }
         crumbs -= COST[type];
@@ -243,20 +325,45 @@
         if (type === 'queen') api.sfx('siren');
         return true;
       }
-      // the side of the table a click is nearest to, and how far along it
+      // the side of the table a point is nearest to, and how far along it
       function sideOf(x, y) {
         const d = [y - TB.y, TB.x + TB.w - x, TB.y + TB.h - y, x - TB.x], side = d.indexOf(Math.min(...d));
         const along = side % 2 === 0 ? (x - TB.x - 20) / (TB.w - 40) : (y - TB.y - 20) / (TB.h - 40);
         return { side, along: U.clamp(along, 0, 1), dist: d[side] };
       }
 
-      /* ---------- computer picnic (plays like a person) ---------- */
-      // It notices a bug a reaction-time late, moves its hand there at mouse
-      // speed (Fitts' law), then flicks toward the nearest edge. It flicks
-      // harder than needed more often under pressure, which can spill the
-      // lemonade, and it gets steadier as the game goes on.
-      const pBrain = new Arcade.Human({ reaction: 0.28 });
-      let pPlan = null, pWait = 1.0;
+      /* ---------- how a person moves a mouse (shared by both computer players) ----------
+         A pointing movement is a fast first movement that lands a little off
+         target, then, about 65% of the time, a small correction (the
+         optimized-submovement model). Speed along the way is bell-shaped
+         (minimum jerk) and the path bows slightly. Time comes from Fitts' law. */
+      const mj = k => k * k * k * (10 - 15 * k + 6 * k * k);
+      function aim(steps, brain, skill, pos, x, y, width) {
+        const dist = U.dist(pos.x, pos.y, x, y);
+        if (dist < 2) return;
+        const sd = (dist * 0.045 + 3) * (1 + brain.pressure * 0.8);
+        const ex = x + U.gauss() * sd, ey = y + U.gauss() * sd;
+        pushMove(steps, pos, ex, ey, brain.point(dist, width) * U.lerp(1, 0.85, brain.pressure));
+        const err = U.dist(ex, ey, x, y);
+        if (err > width * 0.25 && U.chance(0.65 + skill * 0.2)) pushMove(steps, pos, x + U.gauss() * 2, y + U.gauss() * 2, Math.max(0.08, brain.point(err, width)));
+      }
+      function pushMove(steps, pos, x, y, dur) {
+        const dx = x - pos.x, dy = y - pos.y, L = Math.hypot(dx, dy) || 1;
+        steps.push({ k: 'move', x0: pos.x, y0: pos.y, x1: x, y1: y, dur, nx: -dy / L, ny: dx / L, bow: L * U.rand(-0.06, 0.06) });
+        pos.x = x; pos.y = y;
+      }
+      function along(s, k) { const e = mj(k), bow = Math.sin(Math.PI * e) * s.bow; return { x: U.lerp(s.x0, s.x1, e) + s.nx * bow, y: U.lerp(s.y0, s.y1, e) + s.ny * bow }; }
+
+      /* ---------- computer picnic (plays like a person) ----------
+         • picking between several bugs takes longer the more there are
+           (Hick-Hyman: about 150 ms more for every doubling of choices)
+         • a mouse flick takes about 151 ms (sd 53) and comes out about 4° off
+           the intended direction (Moyle & Cockburn); its strength varies
+         • under pressure it moves faster but less accurately, and now and then
+           flicks far too hard; after spilling a glass it flicks softer for a while
+         • it rescues a dish near the edge with a slow drag, like a person would */
+      const pBrain = new Arcade.Human({ reaction: 0.26 });
+      let pSteps = [], spillMemory = 0;
       const pSkill = () => Math.min(0.85, 0.35 + playT / 220);
       function threat(b) {
         if (b.state === 'off' || b.state === 'fly' || b.type === 'ladybug' || !onCloth(b.x, b.y)) return -1;
@@ -267,87 +374,152 @@
         if (b.type === 'beetle') s += 0.5;
         return s + U.gauss() * 0.4 * (1 - pSkill());
       }
-      function cpuPicnic(dt) {
-        pBrain.pressure = U.clamp(bugs.filter(b => b.state === 'eat').length / 6, 0, 1);
-        if (pPlan) return stepPlan(dt);
-        pWait -= dt;
-        if (pWait > 0) return;
-        const p = powers.find(q => q.life > 0);
-        let target = null, best = 0;
-        for (const b of bugs) { const s = threat(b); if (s > best) { best = s; target = b; } }
-        if (p && (!target || best < 2.5) && U.chance(0.6)) {
-          pPlan = { kind: 'tap', tx: p.x, ty: p.y, sx: hnd.x, sy: hnd.y, t: 0, dur: pBrain.point(U.dist(hnd.x, hnd.y, p.x, p.y), 36) };
-          return;
-        }
-        if (!target) { pWait = U.rand(0.2, 0.4); return; }
-        // choose the edge to throw toward: nearest, but a careful player avoids glasses and ladybugs
-        const need = NEED[target.type];
-        let power = target.type === 'ant' ? U.rand(520, 900) + pBrain.scatter(120) : need * U.rand(1.15, 1.45) + Math.abs(pBrain.scatter(80));
-        if (U.chance(0.06 + pBrain.pressure * 0.12)) power = U.rand(1000, 1500);    // panic: far too hard
-        power = U.clamp(power, 300, MAXF);
-        const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-        let dir = null, bestCost = 1e9;
-        for (const [dx, dy] of dirs) {
-          const toEdge = dx ? (dx > 0 ? TB.x + TB.w - target.x : target.x - TB.x) : (dy > 0 ? TB.y + TB.h - target.y : target.y - TB.y);
-          let cost = toEdge / 200;
-          if (U.chance(pSkill())) {
-            const r = { ox: target.x - dx * 100, oy: target.y - dy * 100, dx, dy };
-            for (const d of dishes) if (d.alive && d.kind === 'glass' && power > GLASS_TIPS && inPath(r, d)) cost += 3;
-            for (const b of bugs) if (b.type === 'ladybug' && b.state !== 'off' && inPath(r, b)) cost += 2;
-          }
-          if (cost < bestCost) { bestCost = cost; dir = [dx, dy]; }
-        }
-        const back = U.rand(70, 130);
-        const tx = U.clamp(target.x - dir[0] * back + pBrain.scatter(28), TB.x + 10, TB.x + TB.w - 10);
-        const ty = U.clamp(target.y - dir[1] * back + pBrain.scatter(28), TB.y + 10, TB.y + TB.h - 10);
-        pPlan = { kind: 'flick', tx, ty, sx: hnd.x, sy: hnd.y, t: 0, dur: pBrain.point(U.dist(hnd.x, hnd.y, tx, ty), 40), dir, power };
-      }
       function inPath(r, o) {
         const ex = o.x - r.ox, ey = o.y - r.oy, s = ex * r.dx + ey * r.dy, perp = Math.abs(ex * r.dy - ey * r.dx);
         return s > 0 && s < 500 && perp < 130 + s * 0.55;
       }
-      function stepPlan(dt) {
-        const P = pPlan;
-        P.t += dt;
-        if (P.t < P.dur) {                                          // moving the hand there, easing in and out
-          const k = P.t / P.dur, e = k * k * (3 - 2 * k);
-          hnd.x = U.lerp(P.sx, P.tx, e); hnd.y = U.lerp(P.sy, P.ty, e); hnd.by = 'cpu';
+      function cpuPicnic(dt) {
+        pBrain.pressure = U.clamp(bugs.filter(b => b.state === 'eat').length / 6 + (6 - alive().length) * 0.08, 0, 1);
+        if (spillMemory > 0) spillMemory -= dt;
+        if (!pSteps.length) planPicnic();
+        const s = pSteps[0];
+        if (!s) return;
+        s.t = (s.t || 0) + dt;
+        const k = Math.min(1, s.t / s.dur);
+        if (s.k === 'wait') { if (k >= 1) pSteps.shift(); return; }
+        if (s.k === 'move') { const p = along(s, k); hnd.x = p.x; hnd.y = p.y; hnd.by = 'cpu'; if (k >= 1) pSteps.shift(); return; }
+        if (s.k === 'press') {
+          if (k < 1) return;
+          pSteps.shift();
+          if (s.tap) { const p = powerAt(hnd.x, hnd.y); if (p) usePower(p); } else grabAt(hnd.x, hnd.y, 'cpu');
           return;
         }
-        if (P.kind === 'tap') { const p = powerAt(P.tx, P.ty); if (p) usePower(p); pPlan = null; pWait = pBrain.react(); return; }
-        if (P.flicking === undefined) { grabAt(P.tx, P.ty, 'cpu'); P.flicking = 0; return; }
-        P.flicking += dt;                                           // the flick itself: a quick push, then let go
-        dragTo(P.tx + P.dir[0] * P.power * P.flicking, P.ty + P.dir[1] * P.power * P.flicking);
-        if (P.flicking >= 0.08) {
-          release(P.dir[0] * P.power, P.dir[1] * P.power);
-          pPlan = null;
-          pWait = pBrain.react(true) * U.lerp(1.1, 0.7, pSkill());
+        // flick or slow drag: the hand pushes the cloth along a minimum-jerk path, then lets go
+        if (!grab) { pSteps.shift(); return; }
+        if (s.x0 === undefined) { s.x0 = hnd.x; s.y0 = hnd.y; }
+        const e = mj(k);
+        dragTo(s.x0 + s.dx * s.len * e, s.y0 + s.dy * s.len * e);
+        if (k >= 1) { pSteps.shift(); release(s.k === 'flick' ? s.dx * s.power : 0, s.k === 'flick' ? s.dy * s.power : 0); }
+      }
+      function planPicnic() {
+        const st = pSteps, pos = { x: hnd.x, y: hnd.y }, sk = pSkill();
+        const wait = dur => st.push({ k: 'wait', dur });
+        // a dish drifting near the edge: pull it back with a slow drag
+        const near = dishes.find(d => d.alive && edgeDist(d) < d.r + 30 && onCloth(d.x, d.y));
+        if (near && U.chance(0.4 + sk * 0.5)) {
+          wait(pBrain.react(true));
+          const dir = Math.atan2(TCY - near.y, TCX - near.x), gx = near.x + Math.cos(dir) * (near.r + 24), gy = near.y + Math.sin(dir) * (near.r + 24);
+          aim(st, pBrain, sk, pos, gx, gy, 40);
+          const len = U.rand(55, 80);
+          st.push({ k: 'press', dur: 0.06 }, { k: 'drag', dur: len / U.rand(110, 170), dx: Math.cos(dir), dy: Math.sin(dir), len });
+          wait(pBrain.react());
+          return;
         }
+        const scored = bugs.map(b => ({ b, s: threat(b) })).filter(o => o.s > 0);
+        const p = powers.find(q => q.life > 2);
+        if (p && !scored.some(o => o.s > 2.5) && U.chance(0.5)) {
+          wait(pBrain.react());
+          aim(st, pBrain, sk, pos, p.x, p.y, 36);
+          st.push({ k: 'press', dur: 0.06, tap: true });
+          wait(pBrain.react());
+          return;
+        }
+        if (!scored.length) {                                       // nothing to do: rest the hand, glance around
+          if (U.chance(0.3)) aim(st, pBrain, sk, pos, U.lerp(pos.x, TCX, 0.3) + U.gauss() * 20, U.lerp(pos.y, TCY + 120, 0.3) + U.gauss() * 20, 60);
+          wait(U.rand(0.25, 0.5));
+          return;
+        }
+        // a skilled player goes for groups: one ripple can take several bugs
+        for (const o of scored) o.s += sk * 0.35 * bugs.filter(x => x !== o.b && x.state === 'walk' && U.dist(x.x, x.y, o.b.x, o.b.y) < 70).length;
+        scored.sort((a, b) => b.s - a.s);
+        const target = scored[0].b;
+        // Hick-Hyman: a simple reaction (~250 ms) plus ~150 ms per doubling of the bugs to choose from
+        wait(pBrain.react() + 0.15 * Math.log2(Math.min(scored.length, 12) + 1) * Math.exp(U.gauss() * 0.2));
+        // how hard: comfortably above what this bug needs (a person can't judge it exactly)
+        const eating = target.state === 'eat';
+        let power = target.type === 'ant' ? (eating ? U.rand(680, 900) : spillMemory > 0 ? U.rand(480, 700) : U.rand(550, 800))
+          : NEED[target.type] * U.rand(1.05, 1.2);
+        if (U.chance(0.05 + pBrain.pressure * 0.1)) power *= 1.5;               // panic: far too hard
+        power = U.clamp(power * Math.exp(U.gauss() * 0.15), 300, MAXF);         // no two flicks are the same
+        // which way: toward the nearest edge, but a careful player steers clear of glasses and ladybugs
+        let dir = null, bestCost = 1e9;
+        for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+          let cost = (dx ? (dx > 0 ? TB.x + TB.w - target.x : target.x - TB.x) : (dy > 0 ? TB.y + TB.h - target.y : target.y - TB.y)) / 200;
+          if (U.chance(0.5 + sk * 0.5)) {
+            const r = { ox: target.x - dx * 100, oy: target.y - dy * 100, dx, dy };
+            for (const d of dishes) if (d.alive && d.kind === 'glass' && power > GLASS_TIPS && inPath(r, d)) cost += 3;
+            for (const b of bugs) if (b.type === 'ladybug' && b.state !== 'off' && inPath(r, b)) cost += 2;
+          }
+          if (cost < bestCost) { bestCost = cost; dir = Math.atan2(dy, dx); }
+        }
+        // a glass in the way: a careful player threads the needle, hard enough for the bug but under the spill mark
+        if (power > GLASS_TIPS && NEED[target.type] < GLASS_TIPS && U.chance(sk) && dishes.some(d => d.alive && d.kind === 'glass' && inPath({ ox: target.x - Math.cos(dir) * 100, oy: target.y - Math.sin(dir) * 100, dx: Math.cos(dir), dy: Math.sin(dir) }, d)))
+          power = U.lerp(NEED[target.type] * 1.03, GLASS_TIPS * 0.97, Math.random());
+        const back = U.rand(60, 120);
+        // the start point only has to be somewhere behind the bug, so it's a big target (fewer corrections)
+        aim(st, pBrain, sk, pos, U.clamp(target.x - Math.cos(dir) * back, TB.x + 10, TB.x + TB.w - 10), U.clamp(target.y - Math.sin(dir) * back, TB.y + 10, TB.y + TB.h - 10), 70);
+        const dur = U.clamp(0.151 + U.gauss() * 0.053, 0.08, 0.3);
+        const a = dir + U.gauss() * 4.2 * Math.PI / 180 * (1 + pBrain.pressure);
+        st.push({ k: 'press', dur: 0.06 }, { k: 'flick', dur, dx: Math.cos(a), dy: Math.sin(a), power, len: Math.min(200, power * dur / 1.875) });
+        wait(U.rand(0.15, 0.35));                                             // a glance at the ripple, while already picking the next bug
       }
 
-      /* ---------- computer bugs (plays like a person) ---------- */
-      // Looks at where the hand is and sends ants from the far side in short
-      // trails, saves up for beetles and the queen, and clicks at mouse speed.
-      const bBrain = new Arcade.Human({ reaction: 0.35 });
-      let bWait = 1.2;
+      /* ---------- computer bugs (plays like a person) ----------
+         Clicks bugs onto the table like a person with a mouse: decides (longer
+         with more options), moves its cursor to the edge (Fitts' law, same
+         movement model as the hand) and clicks; a run of ants is a run of
+         clicks. Its plan: go after the dish that is easiest to finish, come in
+         from an edge the hand isn't guarding, strike right after a flick while
+         the hand is busy, and now and then save up for one big rush. */
+      const bBrain = new Arcade.Human({ reaction: 0.32 });
+      const bc = { x: TB.x + TB.w + 40, y: TCY };                // its cursor, drawn so you can watch it
+      let bSteps = [], saving = 0;
+      const bSkill = () => Math.min(0.85, 0.3 + playT / 200);
       function cpuBugs(dt) {
-        if (queue.length) {
-          queue[0].t -= dt;
-          if (queue[0].t <= 0) { const q = queue.shift(); send(q.type, q.side, q.along); }
-          return;
+        if (!bSteps.length) planBugs();
+        const s = bSteps[0];
+        if (!s) return;
+        s.t = (s.t || 0) + dt;
+        const k = Math.min(1, s.t / s.dur);
+        if (s.k === 'wait') { if (k >= 1 || (s.early && sinceFlick < 0.25 && s.t > 0.2)) bSteps.shift(); return; }
+        if (s.k === 'move') { const p = along(s, k); bc.x = p.x; bc.y = p.y; if (k >= 1) bSteps.shift(); return; }
+        if (k >= 1) { bSteps.shift(); const p = sideOf(bc.x, bc.y); send(s.type, p.side, p.along); }
+      }
+      function planBugs() {
+        const st = bSteps, pos = { x: bc.x, y: bc.y };
+        const wait = (dur, early) => st.push({ k: 'wait', dur, early });
+        if (breather()) return wait(U.rand(0.3, 0.6));
+        const opts = ['ant', 'beetle', 'queen'].filter(t => unlocked(t) && crumbs >= COST[t]);
+        if (!opts.length) return wait(U.rand(0.4, 0.9), true);
+        // gentle difficulty adjustment, only against a person: change what gets sent, never the rules
+        let ease = 1;
+        if (api.isHuman('picnic')) {
+          const lostN = 6 - alive().length, low = alive().filter(d => d.food < 30).length;
+          if (lostN >= 2 || low >= 2) ease = 1.15;                                   // struggling: hold back a little
+          else if (playT > 25 && !lostN && alive().every(d => d.food > 70)) ease = 0.7;   // cruising: press harder
         }
-        bWait -= dt;
-        if (bWait > 0) return;
-        const hs = sideOf(hnd.x, hnd.y).side;
-        const side = U.chance(0.65) ? (hs + 2) % 4 : U.randInt(0, 3);
-        const along = U.rand(0.1, 0.9);
-        if (wave >= 3 && crumbs >= COST.queen && !bugs.some(b => b.type === 'queen' && b.state !== 'off') && U.chance(0.35)) send('queen', side, along);
-        else if (wave >= 2 && crumbs >= COST.beetle && U.chance(0.45)) send('beetle', side, along);
-        else if (crumbs >= 2 || (crumbs >= 1 && U.chance(0.3))) {
-          const n = Math.min(Math.floor(crumbs), U.randInt(2, 4 + wave));
-          for (let i = 0; i < n; i++) queue.push({ type: 'ant', side, along: U.clamp(along + U.gauss() * 0.03, 0, 1), t: i ? U.rand(0.2, 0.35) : 0 });
+        // the dish to go after: low on food, near an edge, or a glass (it tempts hard flicks)
+        const target = alive().map(d => ({ d, s: (100 - d.food) / 50 + (1 - edgeDist(d) / 260) + (d.kind === 'glass' ? 0.15 : 0) + U.gauss() * 0.6 * (1 - bSkill()) }))
+          .sort((a, b) => b.s - a.s)[0].d;
+        // come in from the edge nearest it, unless the hand is guarding that edge
+        const sides = [target.y - TB.y, TB.x + TB.w - target.x, TB.y + TB.h - target.y, target.x - TB.x].map((dist, sd) => ({ sd, dist })).sort((a, b) => a.dist - b.dist);
+        const hs = sideOf(hnd.x, hnd.y);
+        const side = sides[0].sd === hs.side && hs.dist < 150 && U.chance(0.4 + bSkill() * 0.4) ? sides[1].sd : sides[0].sd;
+        const al = side % 2 === 0 ? (target.x - TB.x - 20) / (TB.w - 40) : (target.y - TB.y - 20) / (TB.h - 40);
+        const pt = edgePoint(side, U.clamp(al + U.gauss() * 0.08, 0, 1));
+        let type = 'ant', n = 1;
+        if (opts.includes('queen') && !bugs.some(b => b.type === 'queen' && b.state !== 'off') && U.chance(0.35 / ease)) type = 'queen';
+        else if (opts.includes('beetle') && U.chance(0.4 / ease)) type = 'beetle';
+        else {
+          if (!saving && wave >= 2 && U.chance(0.15)) saving = U.randInt(7, 10);      // save up for a rush
+          if (saving && crumbs < saving) return wait(U.rand(0.5, 1));
+          n = saving ? Math.floor(crumbs) : Math.min(Math.floor(crumbs), U.randInt(2, 3 + Math.round(wave * 1.5)));
+          saving = 0;
         }
-        bWait = bBrain.react(true) + bBrain.point(U.rand(80, 300), 30) + U.rand(0.3, 1.0);
+        wait(bBrain.react(true) + 0.15 * Math.log2(opts.length * 2 + 1) * Math.exp(U.gauss() * 0.2));
+        aim(st, bBrain, bSkill(), pos, pt.x, pt.y, 30);
+        for (let i = 0; i < n; i++) st.push({ k: 'click', type, dur: i ? 0.12 + bBrain.point(4, 30) * 0.5 + U.rand(0, 0.1) : 0.06 });
+        wait(U.rand(0.2, 0.7) * ease, true);                     // look at the result; strike early if the hand just flicked
       }
 
       /* ---------- update ---------- */
@@ -363,7 +535,7 @@
         if (coach) coachStep(dt);
         if (!coaching()) {
           playT += dt;
-          const w = 1 + Math.floor(playT / 30);
+          const w = 1 + Math.floor(playT / WAVE);
           if (w !== wave) { wave = w; api.toast(`Wave ${wave}${wave === 2 ? ': beetles' : wave === 3 ? ': the queen' : ''}`); api.sfx('point'); }
           crumbs = Math.min(30, crumbs + dt * INCOME(wave));
           sinceFlick += dt;
@@ -407,30 +579,33 @@
 
         // ripples
         for (const r of ripples) {
-          r.f += 760 * dt;
+          r.f += 900 * dt;
           r.cur = r.amp * (1 - r.f / 950);
           if (r.cur < 150) continue;
           for (const b of bugs) {
             if (b.state === 'off' || r.hit.has(b) || !onCloth(b.x, b.y) || !hitBy(r, b)) continue;
             r.hit.add(b);
             // bugs that are already eating hold on tighter; near the threshold some keep their grip
-            const need = NEED[b.type] * (b.state === 'eat' ? 1.5 : 1);
-            if (r.cur >= need && U.chance(U.clamp(0.45 + (r.cur - need) / 500, 0, 1))) {
+            const need = NEED[b.type] * (b.type === 'ant' && b.state === 'eat' ? 1.5 : 1);   // a feeding ant clings; heavy bugs don't
+            const amp = strength(r, b);
+            if (amp >= need && U.chance(U.clamp(0.45 + (amp - need) / 500, 0, 1))) {
               if (b.type !== 'ladybug') { r.n++; bestChain = Math.max(bestChain, r.n); }
               b.chain = r.n || 1; b.state = 'fly'; b.dish = null;
-              const sp = r.cur * 0.95;
+              const sp = amp * 0.95;
               b.vx = r.dx * sp + U.rand(-120, 120); b.vy = r.dy * sp + U.rand(-120, 120); b.spin = U.rand(-20, 20);
             } else {
               b.state = 'daze'; b.t = 0.6; b.dish = null; b.x += r.dx * 10; b.y += r.dy * 10;
               if (b.type === 'beetle' || b.type === 'queen') float(b.x, b.y - 14, b.type === 'queen' ? 'NEEDS A MEGA FLICK' : 'NEEDS A HARD FLICK', '#ffd0a0', 8);
             }
           }
+          for (const t of trails) if (!r.hit.has(t) && r.cur >= NEED.ant && t.pts.some(p => hitBy(r, p))) { r.hit.add(t); t.str -= 0.5; }   // a ripple scrambles the scent
           for (const d of dishes) {
             if (!d.alive || r.hit.has(d) || !onCloth(d.x, d.y) || !hitBy(r, d)) continue;
             r.hit.add(d);
-            if (r.cur > d.sturdy && !r.starch) {
-              if (d.kind === 'glass' && !coaching()) { lose(d, 'SPILLED!', 'Too hard a flick for the lemonade'); burst(d.x, d.y, '#ffe66b', 22, 180); shake = 10; api.sfx('hit'); }
-              else { d.wob = 0.5; d.vx += r.dx * r.cur * 0.12; d.vy += r.dy * r.cur * 0.12; }
+            const amp = strength(r, d);
+            if (amp > d.sturdy && !r.starch) {
+              if (d.kind === 'glass' && !coaching()) { lose(d, 'SPILLED!', 'Too hard a flick for the lemonade'); burst(d.x, d.y, '#ffe66b', 22, 180); shake = 10; api.sfx('hit'); spillMemory = 20; }
+              else { d.wob = 0.5; d.vx += r.dx * amp * 0.12; d.vy += r.dy * amp * 0.12; }
             } else d.wob = 0.25;
           }
         }
@@ -450,8 +625,8 @@
           if (onCloth(b.x, b.y)) { b.x += cvx * dt; b.y += cvy * dt; }            // bugs cling to the cloth
           if (!onTable(b.x, b.y)) { b.chain = 1; flungOff(b); continue; }
           if (b.type === 'queen') { b.spawnT -= dt; if (b.spawnT <= 0) { b.spawnT = 4; bugs.push(makeBug('ant', b.x + U.rand(-14, 14), b.y + U.rand(-14, 14))); } }
-          if (b.state === 'daze') { b.t -= dt; if (b.t <= 0) b.state = 'walk'; continue; }
-          if (b.state === 'flee') { b.t -= dt; b.x += Math.cos(b.ang) * 80 * dt; b.y += Math.sin(b.ang) * 80 * dt; if (b.t <= 0) b.state = 'walk'; continue; }
+          if (b.state === 'daze') { b.t -= dt; if (b.t <= 0) lost(b); continue; }
+          if (b.state === 'flee') { b.t -= dt; b.x += Math.cos(b.ang) * 80 * dt; b.y += Math.sin(b.ang) * 80 * dt; if (b.t <= 0) lost(b); continue; }
           if (b.type === 'ladybug') {
             b.life -= dt; b.ang += U.rand(-3, 3) * dt;
             b.x += Math.cos(b.ang) * b.sp * dt; b.y += Math.sin(b.ang) * b.sp * dt;
@@ -461,20 +636,17 @@
           }
           if (b.state === 'eat') {
             const d = b.dish;
-            if (!d || !d.alive) { b.state = 'walk'; b.dish = null; continue; }
+            if (!d || !d.alive) { lost(b); continue; }
             b.x = d.x + Math.cos(b.ea) * (d.r + 3); b.y = d.y + Math.sin(b.ea) * (d.r + 3); b.ang = b.ea + Math.PI;
-            d.food -= { ant: 5, beetle: 9, queen: 11 }[b.type] * dt * (coaching() ? 0.3 : 1);
+            d.food -= { ant: 2.6, beetle: 7, queen: 12 }[b.type] * dt * (coaching() ? 0.3 : 1);
             d.eating = true;
             if (d.food <= 0) { if (coaching()) d.food = 20; else { lose(d, 'EATEN!', `The bugs finished the ${d.name}`); burst(d.x, d.y, '#c08a5a', 14, 120); } }
             continue;
           }
-          const d = nearestDish(b);
-          if (!d) continue;
-          const dist = U.dist(b.x, b.y, d.x, d.y);
-          b.ang = Math.atan2(d.y - b.y, d.x - b.x) + Math.sin(b.leg * 0.4) * 0.25;
-          b.x += Math.cos(b.ang) * b.sp * dt; b.y += Math.sin(b.ang) * b.sp * dt;
-          if (dist < d.r + 4) { b.state = 'eat'; b.dish = d; b.ea = Math.atan2(b.y - d.y, b.x - d.x); }
+          walk(b, dt);
         }
+        for (const t of trails) { t.str -= dt * 0.04; for (const p of t.pts) if (onCloth(p.x, p.y)) { p.x += cvx * dt; p.y += cvy * dt; } }
+        trails = trails.filter(t => t.str > 0.15 && t.dish.alive);
         bugs = bugs.filter(b => b.state !== 'off' || (b.t > 0 && b.x > -40 && b.x < W + 40 && b.y > -40 && b.y < H + 40));
 
         // eating sounds and the low-food warning
@@ -498,7 +670,8 @@
         // end of the game
         if (6 - alive().length >= LOSE_AT) {
           over = true; grab = null;
-          return api.end('bugs', `${LOSE_AT} dishes gone after ${clock(playT)}. ${flung} bugs flung.`, 1200);
+          const left = SURVIVE - playT;
+          return api.end('bugs', left < 25 ? `So close: the picnic fell with only ${clock(left)} to go. ${flung} bugs flung.` : `${LOSE_AT} dishes gone after ${clock(playT)}. ${flung} bugs flung.`, 1200);
         }
         if (playT >= SURVIVE) {
           over = true; grab = null;
@@ -508,7 +681,10 @@
           return api.end('picnic', `${alive().length} of 6 dishes saved (+${bonus}). ${flung} bugs flung, best chain x${bestChain}.`);
         }
       }
-      function lose(d, title, msg) { d.alive = false; d.fall = 0.6; api.toast(`${title} ${msg}`, '#ff8a8a'); }
+      function lose(d, title, msg) {
+        d.alive = false; d.fall = 0.6; api.toast(`${title} ${msg}`, '#ff8a8a');
+        if (6 - alive().length === LOSE_AT - 1) api.toast('One more dish and the picnic is over!', '#ffd23f');
+      }
       function spawnPower() {
         const type = U.pick(Object.keys(POWERS)), c = cloth();
         for (let i = 0; i < 20; i++) {
@@ -689,14 +865,15 @@
         ctx.fillStyle = 'rgba(216,52,63,.25)'; ctx.fillRect(mx, my, mw, yOf(GLASS_TIPS) - my);     // spill zone
         ctx.fillStyle = live >= GLASS_TIPS ? '#d8343f' : live >= NEED.ant ? '#f7dd4a' : '#8fc46a';
         ctx.fillRect(mx, my + mh * (1 - f), mw, mh * f);
-        const mark = (v, text, sub) => {
+        const mark = (v, text, sub, color = '#fbf3e4') => {
           const y = yOf(v);
-          ctx.fillStyle = '#fbf3e4'; ctx.fillRect(mx - 3, y - 1, mw + 6, 2);
-          D.text(ctx, text, mx + mw + 10, y, { size: 7, pixel: true, color: '#fbf3e4' });
+          ctx.fillStyle = color; ctx.fillRect(mx - 3, y - 1, mw + 6, 2);
+          D.text(ctx, text, mx + mw + 10, y, { size: 7, pixel: true, color });
           if (sub) D.text(ctx, sub, mx + mw + 10, y + 13, { size: 7, pixel: true, color: '#ff8a8a' });
         };
         mark(NEED.ant, 'ANTS');
-        mark(NEED.beetle, 'BEETLES', 'SPILLS');
+        mark(NEED.beetle, 'BEETLES');
+        mark(GLASS_TIPS, 'SPILLS', null, '#ff8a8a');
         mark(NEED.queen, 'QUEEN');
         if (starch) label(`STARCH x${starch}`, 75, 562, '#9fd0ff');
 
@@ -721,7 +898,15 @@
           label('CLICK THE', 725, 368, '#d7e3c8');
           label('TABLE EDGE', 725, 384, '#d7e3c8');
           label('OR I J K L', 725, 404, '#d7e3c8');
-        } else if (queue.length) label('SENDING', 725, 150, '#f7dd4a');
+        } else if (breather()) label('REGROUPING', 725, 150, '#a9b99a');
+        else if (bSteps.some(x => x.k === 'click')) label('SENDING', 725, 150, '#f7dd4a');
+      }
+      // the computer bug player's mouse pointer, so you can watch it pick its spot
+      function bugCursor(ctx) {
+        ctx.save(); ctx.translate(bc.x, bc.y);
+        ctx.fillStyle = '#2a1a12'; ctx.strokeStyle = '#fbf3e4'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 17); ctx.lineTo(4.5, 12.5); ctx.lineTo(8, 19); ctx.lineTo(10.5, 18); ctx.lineTo(7, 11.5); ctx.lineTo(12.5, 11.5); ctx.closePath();
+        ctx.stroke(); ctx.fill(); ctx.restore();
       }
       function palRect(i) { return { x: 668, y: 148 + i * 66, w: 114, h: 58 }; }
       function drawCoach(ctx) {
@@ -796,11 +981,12 @@
           ctx.globalAlpha = 1;
           if (grab) hand(ctx, hnd.x, hnd.y, true);
           else if (hnd.by === 'keys' || hnd.by === 'cpu') hand(ctx, hnd.x, hnd.y, false);
+          if (!api.isHuman('bugs') && !coaching()) bugCursor(ctx);
           ctx.restore();
 
           D.hud(ctx, [
             { text: coaching() ? 'HOW TO PLAY' : `WAVE ${wave}`, pixel: true, size: 10, color: '#f7dd4a' },
-            { text: coaching() ? '' : `SAVE THE FOOD ${clock(Math.max(0, SURVIVE - playT))}`, align: 'center', pixel: true, size: 10 },
+            { text: coaching() ? '' : breather() ? `BUGS REGROUP · WAVE ${wave + 1} IN ${Math.ceil(WAVE - playT % WAVE)}` : `SAVE THE FOOD ${clock(Math.max(0, SURVIVE - playT))}`, align: 'center', pixel: true, size: 10, color: breather() ? '#8fc46a' : '#fbf3e4' },
             { text: `${alive().length}/6 DISHES`, align: 'right', pixel: true, size: 10, color: alive().length <= 2 ? '#ff8a8a' : '#fbf3e4' }
           ], 40);
           drawSides(ctx);
