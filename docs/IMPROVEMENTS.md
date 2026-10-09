@@ -60,6 +60,7 @@ Balance numbers are computer-versus-computer runs with `tests/sim.js` (60–120 
   - A steady stream instead of bursts: the bugs earn about 2½ times as many crumbs per second as before (2.4 a second, rising every wave), start with 15, and the computer spends them as fast as they come in, with quicker decisions.
   - A flick's ripple is now a narrow band (about half as wide), so each flick only clears the bugs you aim it at.
   - The computer bugs never ease off when you're losing, and the bugs move and eat a little faster.
-  - If you stop flicking, about 30 bugs are on the table within 10 seconds and the picnic is lost in under 20.
+  - Then, after more play-testing, pushed further: **5 times as many bugs** (12 crumbs a second, rising 3.5 every wave, and 75 to start), **bugs placed 5 times faster**, and **much smaller ripples** that start narrow and shrink as they travel, and die out sooner.
+  - If you stop flicking, about 100 bugs are on the table within 7 seconds and the picnic is lost in about 8.
 - **The computer bug player's mouse pointer is hidden** when you're the picnic, so you can't see where the next bugs will come from (it still shows in computer-vs-computer demos).
 - Both sides playable by a person or the computer; the computer players and the ants are built on research into how people point and flick and how ants forage.
