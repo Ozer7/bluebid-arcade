@@ -58,7 +58,7 @@ button{font-family:inherit;color:inherit}
 .machine[data-game="missile"]{--marquee-a:#3b0a52;--marquee-b:#ff3b3b;--marquee-ink:#12001c;--marquee-glow:rgba(255,60,60,.45)}
 .machine[data-game="missile"] .marquee-kicker,.machine[data-game="missile"] .marquee-sub{color:#ffd6d6}
 .machine[data-game="tetris"]{--marquee-a:#306230;--marquee-b:#9bbc0f;--marquee-ink:#0f380f;--marquee-glow:rgba(155,188,15,.4)}
-.machine[data-game="yank"]{--marquee-a:#b3262f;--marquee-b:#fbf3e4;--marquee-ink:#2a1206;--marquee-glow:rgba(216,52,63,.45)}
+.machine[data-game="picnic"]{--marquee-a:#b3262f;--marquee-b:#fbf3e4;--marquee-ink:#2a1206;--marquee-glow:rgba(216,52,63,.45)}
 
 /* bezel + CRT */
 .bezel{background:#08070b;border-radius:16px;padding:clamp(8px,1.6vw,16px);box-shadow:inset 0 2px 0 rgba(255,255,255,.06),inset 0 -8px 20px rgba(0,0,0,.8)}

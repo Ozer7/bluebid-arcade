@@ -15,6 +15,6 @@ Imitation lives as a Claude artifact. Each search waits a random 7–18 seconds,
 
 # Wave 2 post (course channel)
 
-**Yank!**, my original game for the BlueBid cocktail cabinet: https://games.bluebid.online/#yank
+**Picnic Defender**, my original game for the BlueBid cocktail cabinet: https://games.bluebid.online/#picnic
 
 Ants are marching on a picnic. Grab the tablecloth: drag it slowly to move your dishes, or flick it and let go to send a ripple across the cloth that throws bugs off the table (the cloth slides out from under the plates, like the magician's tablecloth trick). Beetles need a hard flick, and a hard flick can spill the lemonade. Keep 4 of your 6 dishes for 2 minutes. The first game teaches you the moves; you can also play the bugs side against the computer. Scores welcome!

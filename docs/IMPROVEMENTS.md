@@ -1,14 +1,14 @@
 # Improvement log: Wave 2 (since the Wave 1 submission on Monday, October 5)
 
-Site: https://games.bluebid.online · Original game: **Yank!**
+Site: https://games.bluebid.online · Original game: **Picnic Defender** (working title: Picnic Defender)
 
 Balance numbers are computer-versus-computer runs with `tests/sim.js` (60–120 games each), "side A / side B" wins.
 
 ## The whole cabinet
-- **New eighth game, Yank!** (my original game), added to the same cabinet and domain.
+- **New eighth game, Picnic Defender** (my original game), added to the same cabinet and domain.
 - **You play the normal side by default.** Every game now opens with the human on the usual side (snake, bottom paddle, bird, pilot, defender, stacker, picnic) and the computer on the other. Swapping sides is still one click.
 - **"Get ready" card before every game.** It shows which side you are, your controls, how you win, and a 3-second countdown (Space or a click starts at once). Before, games started the instant you pressed Start, and a new player could lose before touching a key.
-- **Level select (testing aid).** The "Who's playing" screen has a "Start at" row to jump to a later level or wave: Snake level 1–6, Breakout wall 1–5, Splat level 1–6, Asteroids wave 1–5, Missile Command wave 1–7, Stack & Deal level 1–8, Yank! wave 1–6. The game starts in the state it would really be in by then, not just at the later speed: Snake is as long as it would have grown (a level-6 snake is 50 cells, coiled on the left), Stack & Deal starts with garbage rows, Asteroids has rocks already drifting in, Yank! has ants and a beetle already crawling in, nibbled dishes and more crumbs, and every game starts with the score earned so far.
+- **Level select (testing aid).** The "Who's playing" screen has a "Start at" row to jump to a later level or wave: Snake level 1–6, Breakout wall 1–5, Splat level 1–6, Asteroids wave 1–5, Missile Command wave 1–7, Stack & Deal level 1–8, Picnic Defender wave 1–6. The game starts in the state it would really be in by then, not just at the later speed: Snake is as long as it would have grown (a level-6 snake is 50 cells, coiled on the left), Stack & Deal starts with garbage rows, Asteroids has rocks already drifting in, Picnic Defender has ants and a beetle already crawling in, nibbled dishes and more crumbs, and every game starts with the score earned so far.
 - **Every game rebalanced** so each side wins about as often as the other (details per game below).
 - Menu shows 8 games and accepts keys 1–8.
 
@@ -52,8 +52,9 @@ Balance numbers are computer-versus-computer runs with `tests/sim.js` (60–120 
 - **Sound added** (it had none): coin sound on Find a match, touch-tone dialing while searching, a modem connect, keyboard clicks, a teletype burst when you send, a blip when they reply, a beep when it's your turn, ticks in your last 5 seconds and the round's last 10, a bell when time's up, and a win or lose jingle. "Sound on/off" button (or M) to mute.
 - Header now says game 8.
 
-## Yank! (new)
+## Picnic Defender (new)
 - Original game: flick a picnic tablecloth so its ripple throws bugs off the table, while the cloth slides out from under your dishes. Slow drags move dishes; fast flicks throw bugs; hard flicks launch beetles but can spill the lemonade.
 - Guided first game (a ghost hand teaches the slow drag and the flick), flick-power meter with marked thresholds, power-ups, ladybugs you shouldn't flick, a queen ant, 2-minute games with 20-second waves.
-- **Harder and faster (after play-testing said it was too easy and slow):** about a third more crumbs per second from the start and more each wave, more starting crumbs, bigger ant swarms, faster ants, beetles and queen, and computer bugs that strike again sooner. A simulated quick, experienced picnic player now wins about 1 game in 8 (it was 1 in 3), and the average computer picnic about 1 in 10.
+- **Much harder, with far more bugs (after two rounds of play-testing said it was too easy):** the bugs earn about twice as many crumbs per second and start with 15, ants arrive in swarms of 4 to 18, beetles come in groups, the computer bug player clicks bugs in as fast as a quick mouse player and never sits on a pile of crumbs, it no longer eases off when you're losing, and the bugs move and eat a little faster. If you stop flicking, 30+ bugs are on the table within 15 seconds.
+- **The computer bug player's mouse pointer is hidden** when you're the picnic, so you can't see where the next bugs will come from (it still shows in computer-vs-computer demos).
 - Both sides playable by a person or the computer; the computer players and the ants are built on research into how people point and flick and how ants forage.

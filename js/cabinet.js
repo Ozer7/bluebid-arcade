@@ -165,7 +165,7 @@
 
   /* ================= routing ================= */
   function route() {
-    const id = location.hash.replace('#', '');
+    const id = location.hash.replace('#', '').replace(/^yank$/, 'picnic');   // old link from before the rename
     const g = games.find(x => x.id === id);
     if (g) openGame(g); else showSelect();
   }

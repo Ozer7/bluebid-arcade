@@ -19,7 +19,7 @@ const input = {
   splat: async () => { for (let i = 0; i < 6; i++) { await page.keyboard.press('Space'); await page.waitForTimeout(300); } },
   asteroids: async () => { await page.keyboard.down('ArrowLeft'); await page.keyboard.press('Space'); await page.waitForTimeout(300); await page.keyboard.up('ArrowLeft'); },
   missile: async () => { await page.waitForTimeout(2500); await page.mouse.click(400, 300); },
-  yank: async () => { const b = await page.locator('#screen').boundingBox(); const X = f => b.x + b.width * f, Y = f => b.y + b.height * f;
+  picnic: async () => { const b = await page.locator('#screen').boundingBox(); const X = f => b.x + b.width * f, Y = f => b.y + b.height * f;
     for (let i = 0; i < 3; i++) { await page.mouse.move(X(0.4), Y(0.5)); await page.mouse.down(); await page.mouse.move(X(0.5), Y(0.5), { steps: 3 }); await page.mouse.up(); await page.waitForTimeout(300); }
     await page.keyboard.press('Enter'); await page.keyboard.press('Digit1'); await page.keyboard.press('KeyI'); },
   tetris: async () => { for (const k of ['ArrowLeft', 'ArrowUp', 'Digit1', 'Space', 'Digit3']) { await page.keyboard.press(k); await page.waitForTimeout(150); } }

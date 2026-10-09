@@ -5,7 +5,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm');
 const root = path.join(__dirname, '..');
 const ctx = { window: {}, console, Math, setTimeout: () => 0, requestAnimationFrame: () => 0 };
 ctx.window = ctx; vm.createContext(ctx);
-for (const f of ['engine.js', 'games/snake.js', 'games/breakout.js', 'games/splat.js', 'games/asteroids.js', 'games/missile.js', 'games/tetris.js', 'games/yank.js'])
+for (const f of ['engine.js', 'games/snake.js', 'games/breakout.js', 'games/splat.js', 'games/asteroids.js', 'games/missile.js', 'games/tetris.js', 'games/picnic.js'])
   if (fs.existsSync(path.join(root, 'js', f))) vm.runInContext(fs.readFileSync(path.join(root, 'js', f), 'utf8'), ctx, { filename: f });
 const A = ctx.Arcade;
 const [id, n = 20, maxS = 600] = process.argv.slice(2);
