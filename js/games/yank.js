@@ -673,55 +673,57 @@
       }
       function drawSides(ctx) {
         const who = k => (api.isHuman(k) ? '1P' : 'CPU');
-        // left: picnic (flick meter + dishes)
+        const label = (str, x, y, color = '#a9b99a') => D.text(ctx, str, x, y, { size: 7, pixel: true, color, align: 'center' });
+
+        // left: picnic score and the flick meter (the dishes show their own food rings)
         panelBox(ctx, 8, 48, 134, 544, `PICNIC ${who('picnic')}`);
-        D.text(ctx, String(score), 75, 84, { size: 14, pixel: true, color: '#fbf3e4', align: 'center' });
-        const mx = 30, my = 100, mh = 300, mw = 18;
+        label('SCORE', 75, 86);
+        D.text(ctx, String(score), 75, 106, { size: 14, pixel: true, color: '#fbf3e4', align: 'center' });
+        ctx.fillStyle = '#3f5a36'; ctx.fillRect(20, 126, 110, 2);
+        label('FLICK POWER', 75, 146);
+        const mx = 26, my = 166, mh = 370, mw = 22;
         const live = grab ? grab.speed : lastFlick * U.clamp(1 - (time - lastFlickT) / 1.5, 0, 1);
         const f = U.clamp(live / MAXF, 0, 1);
+        const yOf = v => my + mh * (1 - v / MAXF);
         ctx.fillStyle = '#24361f'; ctx.fillRect(mx, my, mw, mh);
-        ctx.fillStyle = live >= NEED.beetle ? '#d8343f' : live >= NEED.ant ? '#f7dd4a' : '#8fc46a';
+        ctx.fillStyle = 'rgba(216,52,63,.25)'; ctx.fillRect(mx, my, mw, yOf(GLASS_TIPS) - my);     // spill zone
+        ctx.fillStyle = live >= GLASS_TIPS ? '#d8343f' : live >= NEED.ant ? '#f7dd4a' : '#8fc46a';
         ctx.fillRect(mx, my + mh * (1 - f), mw, mh * f);
-        D.text(ctx, 'FLICK', mx + mw / 2, my - 10, { size: 7, pixel: true, color: '#a9b99a', align: 'center' });
-        for (const [v, l] of [[NEED.ant, 'ANTS'], [GLASS_TIPS, 'SPILL'], [NEED.beetle, 'BEETLE'], [NEED.queen, 'QUEEN']]) {
-          const y = my + mh * (1 - v / MAXF);
-          ctx.fillStyle = '#fbf3e4'; ctx.fillRect(mx - 3, y, mw + 6, 2);
-          D.text(ctx, l, mx + mw + 8, l === 'SPILL' ? y + 8 : l === 'BEETLE' ? y - 6 : y, { size: 7, pixel: true, color: l === 'SPILL' ? '#ff8a8a' : '#d7e3c8' });
-        }
-        D.text(ctx, 'FOOD', 75, 424, { size: 8, pixel: true, color: '#f7dd4a', align: 'center' });
-        dishes.forEach((d, i) => {
-          const y = 442 + i * 20;
-          D.text(ctx, d.kind === 'sand' ? 'SANDW' : d.kind === 'glass' ? 'LEMON' : d.name.slice(0, 5).toUpperCase(), 18, y, { size: 7, pixel: true, color: d.alive ? '#fbf3e4' : '#6a7a5a' });
-          D.bar(ctx, 66, y - 4, 66, 8, d.alive ? d.food / 100 : 0, d.food > 50 ? '#8fc46a' : d.food > 30 ? '#f0b84a' : '#d8343f', '#24361f');
-        });
-        if (starch) D.text(ctx, `STARCH x${starch}`, 75, 572, { size: 8, pixel: true, color: '#9fd0ff', align: 'center' });
+        const mark = (v, text, sub) => {
+          const y = yOf(v);
+          ctx.fillStyle = '#fbf3e4'; ctx.fillRect(mx - 3, y - 1, mw + 6, 2);
+          D.text(ctx, text, mx + mw + 10, y, { size: 7, pixel: true, color: '#fbf3e4' });
+          if (sub) D.text(ctx, sub, mx + mw + 10, y + 13, { size: 7, pixel: true, color: '#ff8a8a' });
+        };
+        mark(NEED.ant, 'ANTS');
+        mark(NEED.beetle, 'BEETLES', 'SPILLS');
+        mark(NEED.queen, 'QUEEN');
+        if (starch) label(`STARCH x${starch}`, 75, 562, '#9fd0ff');
 
-        // right: bugs (crumbs + palette)
+        // right: the bugs' crumbs, plus the bug buttons when a person plays the bugs
         panelBox(ctx, 658, 48, 134, 544, `BUGS ${who('bugs')}`);
-        D.text(ctx, 'CRUMBS', 725, 76, { size: 8, pixel: true, color: '#d7e3c8', align: 'center' });
-        D.text(ctx, String(Math.floor(crumbs)), 725, 98, { size: 16, pixel: true, color: '#fbf3e4', align: 'center' });
-        D.bar(ctx, 672, 114, 106, 6, crumbs % 1, '#e8c21f', '#24361f');
-        ['ant', 'beetle', 'queen'].forEach((t, i) => {
-          const r = palRect(i), ok = unlocked(t) && crumbs >= COST[t], on = api.isHuman('bugs') && pick === t;
-          ctx.fillStyle = on ? '#d8343f' : '#24361f'; ctx.fillRect(r.x, r.y, r.w, r.h);
-          ctx.strokeStyle = ok ? '#8fc46a' : '#3f5a36'; ctx.lineWidth = 2; ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
-          ctx.globalAlpha = unlocked(t) ? 1 : 0.35;
-          ctx.save(); ctx.translate(r.x + 26, r.y + r.h / 2); ctx.rotate(-Math.PI / 2);
-          drawBug(ctx, { type: t, x: 0, y: 0, ang: 0, leg: time * 10, state: 'walk' });
-          ctx.restore();
-          D.text(ctx, `${i + 1} ${t.toUpperCase()}`, r.x + 46, r.y + r.h / 2 - 7, { size: 7, pixel: true, color: '#fbf3e4' });
-          D.text(ctx, unlocked(t) ? `${COST[t]} CRUMB${COST[t] > 1 ? 'S' : ''}` : `WAVE ${t === 'beetle' ? 2 : 3}`, r.x + 46, r.y + r.h / 2 + 8, { size: 7, pixel: true, color: '#a9b99a' });
-          ctx.globalAlpha = 1;
-        });
+        label('CRUMBS', 725, 86);
+        D.text(ctx, String(Math.floor(crumbs)), 725, 106, { size: 14, pixel: true, color: '#fbf3e4', align: 'center' });
+        D.bar(ctx, 680, 122, 90, 4, crumbs % 1, '#e8c21f', '#24361f');
         if (api.isHuman('bugs')) {
-          D.text(ctx, 'CLICK THE', 725, 370, { size: 7, pixel: true, color: '#d7e3c8', align: 'center' });
-          D.text(ctx, 'TABLE EDGE', 725, 384, { size: 7, pixel: true, color: '#d7e3c8', align: 'center' });
-          D.text(ctx, 'OR I J K L', 725, 404, { size: 7, pixel: true, color: '#d7e3c8', align: 'center' });
-        } else if (queue.length || bWait < 0.4) D.text(ctx, 'SENDING', 725, 380, { size: 8, pixel: true, color: '#f7dd4a', align: 'center' });
-        D.text(ctx, `FLUNG ${flung}`, 725, 540, { size: 8, pixel: true, color: '#fbf3e4', align: 'center' });
-        D.text(ctx, `CHAIN x${bestChain}`, 725, 560, { size: 8, pixel: true, color: '#fbf3e4', align: 'center' });
+          ['ant', 'beetle', 'queen'].forEach((t, i) => {
+            const r = palRect(i), ok = unlocked(t) && crumbs >= COST[t], on = pick === t;
+            ctx.fillStyle = on ? '#d8343f' : '#24361f'; ctx.fillRect(r.x, r.y, r.w, r.h);
+            ctx.strokeStyle = ok ? '#8fc46a' : '#3f5a36'; ctx.lineWidth = 2; ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+            ctx.globalAlpha = unlocked(t) ? 1 : 0.35;
+            ctx.save(); ctx.translate(r.x + 24, r.y + r.h / 2); ctx.rotate(-Math.PI / 2);
+            drawBug(ctx, { type: t, x: 0, y: 0, ang: 0, leg: time * 10, state: 'walk' });
+            ctx.restore();
+            D.text(ctx, `${i + 1} ${t.toUpperCase()}`, r.x + 44, r.y + r.h / 2 - 8, { size: 7, pixel: true, color: '#fbf3e4' });
+            D.text(ctx, unlocked(t) ? `${COST[t]} CRUMB${COST[t] > 1 ? 'S' : ''}` : `WAVE ${t === 'beetle' ? 2 : 3}`, r.x + 44, r.y + r.h / 2 + 8, { size: 7, pixel: true, color: '#a9b99a' });
+            ctx.globalAlpha = 1;
+          });
+          label('CLICK THE', 725, 368, '#d7e3c8');
+          label('TABLE EDGE', 725, 384, '#d7e3c8');
+          label('OR I J K L', 725, 404, '#d7e3c8');
+        } else if (queue.length) label('SENDING', 725, 150, '#f7dd4a');
       }
-      function palRect(i) { return { x: 668, y: 136 + i * 66, w: 114, h: 58 }; }
+      function palRect(i) { return { x: 668, y: 148 + i * 66, w: 114, h: 58 }; }
       function drawCoach(ctx) {
         let title, sub, gx, gy, down = true;
         const t = coach.t;
