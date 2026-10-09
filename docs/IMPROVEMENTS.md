@@ -55,6 +55,11 @@ Balance numbers are computer-versus-computer runs with `tests/sim.js` (60–120 
 ## Picnic Defender (new)
 - Original game: flick a picnic tablecloth so its ripple throws bugs off the table, while the cloth slides out from under your dishes. Slow drags move dishes; fast flicks throw bugs; hard flicks launch beetles but can spill the lemonade.
 - Guided first game (a ghost hand teaches the slow drag and the flick), flick-power meter with marked thresholds, power-ups, ladybugs you shouldn't flick, a queen ant, 2-minute games with 20-second waves.
-- **Much harder, with far more bugs (after two rounds of play-testing said it was too easy):** the bugs earn about twice as many crumbs per second and start with 15, ants arrive in swarms of 4 to 18, beetles come in groups, the computer bug player clicks bugs in as fast as a quick mouse player and never sits on a pile of crumbs, it no longer eases off when you're losing, and the bugs move and eat a little faster. If you stop flicking, 30+ bugs are on the table within 15 seconds.
+- **Now the hardest game in the cabinet (after three rounds of play-testing said it was too easy):**
+  - Bugs no longer arrive in clumps that one flick clears. Every bug comes in at its own spot, and about a third come from the other sides of the table, so you have to flick in several directions.
+  - A steady stream instead of bursts: the bugs earn about 2½ times as many crumbs per second as before (2.4 a second, rising every wave), start with 15, and the computer spends them as fast as they come in, with quicker decisions.
+  - A flick's ripple is now a narrow band (about half as wide), so each flick only clears the bugs you aim it at.
+  - The computer bugs never ease off when you're losing, and the bugs move and eat a little faster.
+  - If you stop flicking, about 30 bugs are on the table within 10 seconds and the picnic is lost in under 20.
 - **The computer bug player's mouse pointer is hidden** when you're the picnic, so you can't see where the next bugs will come from (it still shows in computer-vs-computer demos).
 - Both sides playable by a person or the computer; the computer players and the ants are built on research into how people point and flick and how ants forage.
