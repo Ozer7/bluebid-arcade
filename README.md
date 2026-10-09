@@ -1,6 +1,6 @@
 # BlueBid Arcade: the Cocktail Cabinet
 
-Seven arcade games on one static page. In every game, either side can be played by a human or by the computer.
+Eight arcade games on one static page. In every game, either side can be played by a human or by the computer.
 
 **Live:** https://games.bluebid.online · **Imitation:** runs as a Claude artifact (linked from the cabinet)
 
@@ -12,6 +12,7 @@ Seven arcade games on one static page. In every game, either side can be played 
 | Asteroids | Pilot | Thrower | The computer flies, you throw asteroids |
 | Missile Command | Defender | Attacker | You attack, the computer defends |
 | Stack & Deal *(my game)* | Stacker | Dealer (picks every piece) | You deal, the computer stacks |
+| Yank! *(my original game)* | Picnic (flicks the tablecloth) | Bugs (sends ants, beetles and a queen) | You send the bugs, the computer flicks the cloth |
 | Imitation | You | A person in another browser, or Claude | Chat for 2 minutes, then guess |
 
 ## The look: a real arcade cabinet
@@ -19,7 +20,7 @@ Seven arcade games on one static page. In every game, either side can be played 
 Arcade cabinets and attract mode shaped the page:
 
 - **Cabinet:** a lit **marquee** on top (it changes to each game's colours), a curved **CRT** with scanlines inside a bezel, and a **control deck** with round arcade buttons (Back, Start, Pause, Sound).
-- **Game select in attract mode:** a list you move through with ↑ ↓ or 1–7 (Enter to start) with a live CPU-vs-CPU **demo** of the highlighted game, its original year, the flip, and its **top-5 high scores**. Left alone for 22 seconds, it cycles through the games by itself, like an arcade machine does.
+- **Game select in attract mode:** a list you move through with ↑ ↓ or 1–8 (Enter to start) with a live CPU-vs-CPU **demo** of the highlighted game, its original year, the flip, and its **top-5 high scores**. Left alone for 22 seconds, it cycles through the games by itself, like an arcade machine does.
 - **Instruction card** under the screen, like the printed card under the glass on a real cabinet.
 - **High scores with 3-letter initials** (arrow keys or typing), saved in the browser. **Sound effects** from a small chip-style synthesiser (WebAudio, no files), with an M key to mute.
 - **Every game has its own era look** instead of one shared style:
@@ -32,6 +33,7 @@ Arcade cabinets and attract mode shaped the page:
 | Asteroids | Atari vector monitor (1979) | glowing thin lines with phosphor afterglow, rocks worth 20/50/100, heartbeat that speeds up, risky hyperspace (Shift/H, 20% chance to explode) |
 | Missile Command | Atari raster (1980) | colour scheme changes every two waves (like the original's wave table), ABM pyramids on 3 bases, colour-cycling fireballs, score multiplier ×1→×4, end-of-wave bonus count, "THE END" explosion |
 | Stack & Deal | Game Boy Tetris (1989) | four greens, brick-walled well, block patterns instead of colours, blinking line clears, Game Boy scoring 40/100/300/1200 × level |
+| Yank! | picnic cartoon (my own, 2026) | red gingham cloth on a wooden table, ripples you can watch travel across the cloth, a flick-power meter marked with what each strength does, and a coached first game that teaches the slow drag and the flick before any bugs arrive |
 | Imitation | teletype terminal | green phosphor text, modem "dialing" while matchmaking, Human or Not turn rules (one message each, 100 characters, 20 seconds per turn), and a coin flip between a person and Claude when two players search at once |
 
 ## How the code is organised
@@ -79,6 +81,7 @@ Game by game:
 - **Breakout:** the paddle glances at the ball every fraction of a second and guesses where it will land (a straight line plus at most one wall bounce), refining the guess as the ball comes closer. It notices a brick bounce only a reaction-time later. It moves like a hand on a mouse: accelerates, overshoots slightly, settles.
 - **Asteroids:** the pilot notices each new rock after a delay, turns and fires in bursts, and only partly leads its shots. When a rock gets close it commits to one panic escape, and it's bad at braking. The thrower saves up and throws bursts at where the ship is, starting with big rocks.
 - **Missile Command:** the defender notices missiles late, has to move the mouse to each one (farther takes longer), usually aims not quite far enough ahead, fires again if a shot misses, and sometimes wastes shots. The attacker picks a city and hammers it, then switches.
+- **Yank!:** the picnic player notices a bug a reaction-time late, moves its hand there at mouse speed (Fitts' law), and flicks toward the nearest table edge. A careful player (more often as it warms up) picks a direction that misses the lemonade and the ladybugs; under pressure it sometimes flicks far too hard and spills a glass. The bug player watches where the hand is, sends short ant trails from the far side, and saves crumbs for beetles and the queen.
 - **Stack & Deal:** the stacker makes its first move 400–600 ms after a piece appears and presses keys about 250 ms apart, speeding up under pressure. Like weaker players, it often spins a piece to "look" at it before settling. It sometimes holds a direction key a moment too long and lands one column off. The dealer looks at the board, decides, then moves the mouse to the palette and clicks.
 
 Everything controlled with a mouse (the apple placer, the thrower, both Missile Command sides, the dealer) takes human mouse-travel time from Fitts' law, at about 3.8 bits per second.
@@ -102,6 +105,7 @@ Everything controlled with a mouse (the apple placer, the thrower, both Missile 
 - **Flappy Bird (2013):** bronze, silver, gold and platinum medals at 10, 20, 30 and 40 points ([Wikipedia: Flappy Bird](https://en.wikipedia.org/wiki/Flappy_Bird)).
 - **Nokia Snake:** the two-tone LCD palette ([Lospec: Nokia 3310](https://lospec.com/palette-list/nokia-3310)).
 - **Game Boy Tetris (1989):** the four-green palette ([Lospec: Original Gameboy](https://lospec.com/palette-list/original-gameboy)), 40/100/300/1200 × (level+1) scoring ([TetrisWiki: Scoring](https://tetris.wiki/Scoring)), and a level every 10 lines ([TetrisWiki: Tetris (Game Boy)](https://tetris.wiki/Tetris_(Game_Boy))).
+- **Yank! (my original game):** the tablecloth trick works by inertia: the cloth moves away quickly but the dishes stay where they were, helped by a smooth, low-friction cloth ([UMD Physics lecture demos](https://lecdem.physics.umd.edu/tools-and-resources/lecdem-blog/411-blog-highlight-tablecloth-part1.html)). The trick has been a game before, as Taito's arcade test *The Tablecloth Hour* (2010) ([Arcade Heroes](https://arcadeheroes.com/2010/08/15/test-your-tablecloth-pulling-skills-with-the-tablecloth-hour/)) and Super Mario Party's *Clearing the Table* ([Super Mario Wiki](https://www.mariowiki.com/Clearing_the_Table)); neither has enemies. Using the cloth's ripple to throw bugs off the table while defending the food is the new part.
 - **Imitation:** AI21's *Human or Not* (2023): 2-minute chats, alternating turns, 100-character messages, 20 seconds per message. Players guessed right 68% of the time: 60% against bots and 73% against people ([Jannai et al., 2023](https://arxiv.org/abs/2305.20010)).
 - **Arcade look:** attract mode, where an idle machine shows gameplay and high scores to draw players in ([TV Tropes: Attract Mode](https://tvtropes.org/pmwiki/pmwiki.php/Main/AttractMode)); game feel from screen shake, flashes and sound ([Jan Willem Nijman, "The Art of Screenshake"](https://www.youtube.com/watch?v=AJdEqssNZ-U)).
 
@@ -125,6 +129,7 @@ Balance results after the arcade redesign (60 computer-vs-computer games each, o
 | Asteroids | pilot 32% / thrower 68% | ~1:30 |
 | Missile Command | defender 30% / attacker 70% | ~3:45 |
 | Stack & Deal | stacker 53% / dealer 47% | ~2:40 |
+| Yank! | picnic 72% / bugs 28% (180-game run) | 2:30 (the full game) |
 
 ## Deploying (GitHub → Netlify → games.bluebid.online)
 

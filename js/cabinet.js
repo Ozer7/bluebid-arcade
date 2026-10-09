@@ -153,7 +153,7 @@
       machine.dataset.game = '';
       $('#marqueeKicker').textContent = 'BlueBid Arcade presents';
       $('#marqueeTitle').textContent = 'Cocktail Cabinet';
-      $('#marqueeSub').textContent = '7 games · human or CPU on either side';
+      $('#marqueeSub').textContent = '8 games · human or CPU on either side';
       return;
     }
     machine.dataset.game = g.id;
@@ -393,7 +393,7 @@
       if (e.key === 'ArrowDown' || e.key === 's') { e.preventDefault(); choose(sel + 1); }
       else if (e.key === 'ArrowUp' || e.key === 'w') { e.preventDefault(); choose(sel - 1); }
       else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startSelected(); }
-      else if (/^[1-7]$/.test(e.key)) { choose(+e.key - 1); }
+      else if (/^[1-8]$/.test(e.key)) { choose(+e.key - 1); }
       return;
     }
     // overlays
