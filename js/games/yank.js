@@ -33,7 +33,7 @@
   const SURVIVE = 120;                                      // seconds the picnic must last (an arcade run: 30 s – 3 min)
   const WAVE = 20;                                          // seconds per wave
   const LOSE_AT = 3;                                        // dishes gone when the bugs win
-  const INCOME = w => 0.9 + 0.3 * (w - 1);                 // crumbs per second: pressure roughly triples over the run
+  const INCOME = w => 1.0 + 0.32 * (w - 1);                 // crumbs per second: a steady stream of ants from the start, swarms by wave 4
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // dishes: grip = cloth speed (px/s) above which the cloth slides out from under them
@@ -220,7 +220,7 @@
       // 1.07 ± 0.45 m/min in Argentine ants, sped up here like a time-lapse);
       // and ants stop for a moment every few seconds.
       let trails = [];                                            // scent trails: {pts:[{x,y}], dish, str}
-      const BASE_SP = { ant: 44, beetle: 34, queen: 24, ladybug: 38 };
+      const BASE_SP = { ant: 50, beetle: 37, queen: 26, ladybug: 42 };
       const SIZE = { ant: 5, beetle: 9, queen: 12, ladybug: 7 };
       function makeBug(type, x, y) {
         const spread = type === 'ant' ? 0.35 : 0.08;              // ants differ a lot in speed; beetles hardly
@@ -315,7 +315,7 @@
       const breather = () => !coaching() && playT % WAVE > WAVE - 2;
 
       /* ---------- shared bugs action: spend crumbs to send a bug ---------- */
-      let crumbs = 6, pick = 'ant';
+      let crumbs = 8 + (api.startLevel - 1) * 3, pick = 'ant';
       const unlocked = t => (t === 'ant' || (t === 'beetle' && wave >= 2) || (t === 'queen' && wave >= 3));
       function send(type, side, along) {
         if (over || coaching()) return false;
@@ -327,6 +327,14 @@
         bugs.push(makeBug(type, p.x, p.y));
         if (type === 'queen') api.sfx('siren');
         return true;
+      }
+      // Level select: a later wave starts the way a real game would look by then: the score so
+      // far, dishes already nibbled, and a swarm of ants (and a beetle) already crawling in.
+      if (api.startLevel > 1) {
+        score = (wave - 1) * 260;
+        for (const d of dishes) d.food = 100 - (wave - 1) * 6;
+        for (let i = 0; i < wave * 2 + 1; i++) { const p = edgePoint(U.randInt(0, 3)); bugs.push(makeBug('ant', p.x, p.y)); }
+        if (unlocked('beetle')) { const p = edgePoint(U.randInt(0, 3)); bugs.push(makeBug('beetle', p.x, p.y)); }
       }
       // the side of the table a point is nearest to, and how far along it
       function sideOf(x, y) {
@@ -493,7 +501,7 @@
         const wait = (dur, early) => st.push({ k: 'wait', dur, early });
         if (breather()) return wait(U.rand(0.3, 0.6));
         const opts = ['ant', 'beetle', 'queen'].filter(t => unlocked(t) && crumbs >= COST[t]);
-        if (!opts.length) return wait(U.rand(0.4, 0.9), true);
+        if (!opts.length) return wait(U.rand(0.25, 0.5), true);
         // gentle difficulty adjustment, only against a person: change what gets sent, never the rules
         let ease = 1;
         if (api.isHuman('picnic')) {
@@ -514,15 +522,15 @@
         if (opts.includes('queen') && !bugs.some(b => b.type === 'queen' && b.state !== 'off') && U.chance(0.35 / ease)) type = 'queen';
         else if (opts.includes('beetle') && U.chance(0.4 / ease)) type = 'beetle';
         else {
-          if (!saving && wave >= 2 && U.chance(0.15)) saving = U.randInt(7, 10);      // save up for a rush
+          if (!saving && wave >= 2 && U.chance(0.15)) saving = U.randInt(9, 14);      // save up for a rush
           if (saving && crumbs < saving) return wait(U.rand(0.5, 1));
-          n = saving ? Math.floor(crumbs) : Math.min(Math.floor(crumbs), U.randInt(2, 3 + Math.round(wave * 1.5)));
+          n = saving ? Math.floor(crumbs) : Math.min(Math.floor(crumbs), U.randInt(2, 3 + Math.round(wave * 1.6)));
           saving = 0;
         }
         wait(bBrain.react(true) + 0.15 * Math.log2(opts.length * 2 + 1) * Math.exp(U.gauss() * 0.2));
         aim(st, bBrain, bSkill(), pos, pt.x, pt.y, 30);
         for (let i = 0; i < n; i++) st.push({ k: 'click', type, dur: i ? 0.12 + bBrain.point(4, 30) * 0.5 + U.rand(0, 0.1) : 0.06 });
-        wait(U.rand(0.2, 0.7) * ease, true);                     // look at the result; strike early if the hand just flicked
+        wait(U.rand(0.15, 0.55) * ease, true);                     // look at the result; strike early if the hand just flicked
       }
 
       /* ---------- update ---------- */
@@ -641,7 +649,7 @@
             const d = b.dish;
             if (!d || !d.alive) { lost(b); continue; }
             b.x = d.x + Math.cos(b.ea) * (d.r + 3); b.y = d.y + Math.sin(b.ea) * (d.r + 3); b.ang = b.ea + Math.PI;
-            d.food -= { ant: 2.6, beetle: 7, queen: 12 }[b.type] * dt * (coaching() ? 0.3 : 1);
+            d.food -= { ant: 2.3, beetle: 6.5, queen: 12 }[b.type] * dt * (coaching() ? 0.3 : 1);
             d.eating = true;
             if (d.food <= 0) { if (coaching()) d.food = 20; else { lose(d, 'EATEN!', `The bugs finished the ${d.name}`); burst(d.x, d.y, '#c08a5a', 14, 120); } }
             continue;

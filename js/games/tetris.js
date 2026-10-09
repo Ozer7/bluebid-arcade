@@ -175,6 +175,13 @@
     create(api) {
       let board = emptyBoard();
       let lines = (api.startLevel - 1) * 4, score = 0;   // level select: 4 lines per level
+      // Level select also starts with a messy stack, like a real game that has run this long:
+      // garbage rows with a hole or two each, more of them the higher you start.
+      for (let r = 0; r < Math.min(9, Math.round((api.startLevel - 1) * 1.3)); r++) {
+        const row = Array.from({ length: COLS }, () => U.pick(['I', 'J', 'L', 'O', 'S', 'T', 'Z']));
+        row[U.randInt(0, COLS - 1)] = null; if (U.chance(0.5)) row[U.randInt(0, COLS - 1)] = null;
+        board[ROWS - 1 - r] = row;
+      }
       let cur = null;            // {name, rot, x, y}
       let next = null;           // dealt by the dealer
       const history = [];        // dealt pieces, newest last

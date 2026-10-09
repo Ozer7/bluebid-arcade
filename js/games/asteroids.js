@@ -91,6 +91,18 @@
         rocks.push({ x, y, vx, vy, sz, r: SIZES[sz].r, rot: 0, spin: U.rand(-1, 1), verts, fresh: 1.2 });
       }
 
+      // Level select: a later wave starts mid-fight, like a real game would be — the score from
+      // the waves before and a few rocks already drifting in from the edges (never on top of the ship).
+      if (wave > 1) {
+        score = (wave - 1) * 650;
+        for (let i = 0; i < Math.min(maxRocks() - 2, wave + 1); i++) {
+          const ang = U.rand(0, Math.PI * 2), sz = U.pick([2, 3, 3]);
+          const sx = W / 2 + Math.cos(ang) * 340, sy = H / 2 + Math.sin(ang) * 260;
+          const head = ang + Math.PI + U.rand(-0.9, 0.9), sp = U.rand(...SIZES[sz].speed) * speedMul();
+          makeRock(sx, sy, Math.cos(head) * sp, Math.sin(head) * sp, sz);
+        }
+      }
+
       // Launch from the screen edge nearest the aim point, heading at the aim point.
       function launch(tx, ty, sz) {
         const cost = SIZES[sz].cost;

@@ -68,8 +68,8 @@
       let flashT = 0, frameNo = 0;
 
       const players = {
-        bottom: { key: 'bottom', y: BOTTOM_Y, x: W / 2, vx: 0, lives: LIVES, score: 0, dirToOpp: -1, target: W / 2, think: 0 },
-        top: { key: 'top', y: TOP_Y, x: W / 2, vx: 0, lives: LIVES, score: 0, dirToOpp: 1, target: W / 2, think: 0 }
+        bottom: { key: 'bottom', y: BOTTOM_Y, x: W / 2, vx: 0, lives: LIVES, score: (level - 1) * 250, dirToOpp: -1, target: W / 2, think: 0 },
+        top: { key: 'top', y: TOP_Y, x: W / 2, vx: 0, lives: LIVES, score: (level - 1) * 250, dirToOpp: 1, target: W / 2, think: 0 }
       };
       const other = k => (k === 'bottom' ? players.top : players.bottom);
 

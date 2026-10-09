@@ -157,6 +157,19 @@
       let flash = 0;
       let deathT = 0, bonk = null;                    // crash animation
       let score = 0;
+      // Level select: start exactly where a real game would be at that level — a snake as long
+      // as it would have grown by now and the score it would have earned, coiled on the left.
+      if (eaten > 0) {
+        let len = 3;
+        for (let k = 1; k <= eaten; k++) { len += 1 + Math.floor(k / 10); score += 10 * (1 + Math.floor((k - 1) / 5)); }
+        const L = 1, R = 10;                            // coiled on the left, head facing the open board (as much room as a new game)
+        snake = [];
+        for (let i = 0, y = 11 - Math.floor(len / 20); snake.length < len; y++, i++) {
+          const xs = []; for (let x = R; x >= L; x--) xs.push(x);
+          if (i % 2) xs.reverse();
+          for (const x of xs) { if (snake.length < len) snake.push({ x, y }); }
+        }
+      }
       let ghosts = [];                                 // LCD ghosting: cells the tail just left fade out slowly
       const person = new Arcade.Human({ reaction: 0.26, lapseRate: 0.025 });
 

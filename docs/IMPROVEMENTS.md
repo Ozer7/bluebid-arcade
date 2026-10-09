@@ -8,7 +8,7 @@ Balance numbers are computer-versus-computer runs with `tests/sim.js` (60–120 
 - **New eighth game, Yank!** (my original game), added to the same cabinet and domain.
 - **You play the normal side by default.** Every game now opens with the human on the usual side (snake, bottom paddle, bird, pilot, defender, stacker, picnic) and the computer on the other. Swapping sides is still one click.
 - **"Get ready" card before every game.** It shows which side you are, your controls, how you win, and a 3-second countdown (Space or a click starts at once). Before, games started the instant you pressed Start, and a new player could lose before touching a key.
-- **Level select (testing aid).** The "Who's playing" screen has a "Start at" row to jump to a later level or wave: Snake level 1–6, Breakout wall 1–5, Splat level 1–6, Asteroids wave 1–5, Missile Command wave 1–7, Stack & Deal level 1–8, Yank! wave 1–6.
+- **Level select (testing aid).** The "Who's playing" screen has a "Start at" row to jump to a later level or wave: Snake level 1–6, Breakout wall 1–5, Splat level 1–6, Asteroids wave 1–5, Missile Command wave 1–7, Stack & Deal level 1–8, Yank! wave 1–6. The game starts in the state it would really be in by then, not just at the later speed: Snake is as long as it would have grown (a level-6 snake is 50 cells, coiled on the left), Stack & Deal starts with garbage rows, Asteroids has rocks already drifting in, Yank! has ants and a beetle already crawling in, nibbled dishes and more crumbs, and every game starts with the score earned so far.
 - **Every game rebalanced** so each side wins about as often as the other (details per game below).
 - Menu shows 8 games and accepts keys 1–8.
 
@@ -55,4 +55,5 @@ Balance numbers are computer-versus-computer runs with `tests/sim.js` (60–120 
 ## Yank! (new)
 - Original game: flick a picnic tablecloth so its ripple throws bugs off the table, while the cloth slides out from under your dishes. Slow drags move dishes; fast flicks throw bugs; hard flicks launch beetles but can spill the lemonade.
 - Guided first game (a ghost hand teaches the slow drag and the flick), flick-power meter with marked thresholds, power-ups, ladybugs you shouldn't flick, a queen ant, 2-minute games with 20-second waves.
+- **Harder and faster (after play-testing said it was too easy and slow):** about a third more crumbs per second from the start and more each wave, more starting crumbs, bigger ant swarms, faster ants, beetles and queen, and computer bugs that strike again sooner. A simulated quick, experienced picnic player now wins about 1 game in 8 (it was 1 in 3), and the average computer picnic about 1 in 10.
 - Both sides playable by a person or the computer; the computer players and the ants are built on research into how people point and flick and how ants forage.

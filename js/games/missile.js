@@ -76,7 +76,7 @@
       let blasts = [];        // {x,y,t,friendly}
       let budget = 0, launched = 0, reload = 0, waveClock = 0;
       let gameOver = false, theEnd = 0;
-      let score = 0, bonus = null;             // bonus = end-of-wave tally in progress
+      let score = (wave - 1) * 900, bonus = null;   // level select: the score earlier waves would have banked             // bonus = end-of-wave tally in progress
       const mult = () => 1 + Math.floor((wave - 1) / 2);
       const pal = () => PALS[Math.min(PALS.length - 1, wave - 1)];
       const stars = Array.from({ length: 60 }, () => ({ x: Math.random() * W, y: Math.random() * 380, b: Math.random() }));
