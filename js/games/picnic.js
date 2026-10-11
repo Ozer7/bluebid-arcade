@@ -13,7 +13,8 @@
      • a flick harder than 1150 tips over any lemonade glass in its path
      • the bugs side spends crumbs that come in at a fixed rate:
        ant 1, beetle 4, queen 12
-     • wave 1 is as hard as the old wave 6, and every wave doubles the difficulty
+     • every wave: 8% more bugs a second, bugs 10% faster, and each flick's
+       ripple 10% narrower; tuned from play-testing so a good player lasts about 1:45
        (crumbs per second, how fast bugs are placed, and bug speed, capped at 4x)
    Both computer players use Arcade.Human, so they react, aim and move the
    mouse at human speed.
@@ -30,14 +31,14 @@
   const MAXF = 1800;                                        // strongest flick, px/s
   const NEED = { ant: 350, beetle: 1000, queen: 1300, ladybug: 350 };
   const GLASS_TIPS = 1150;
-  const HALF = () => CW / 4;                                // half-width of a ripple: each flick's ripple is half the tablecloth wide
+  const HALF0 = CW / 4;                                     // ripple half-width in wave 1: each flick's ripple is half the tablecloth wide
   const COST = { ant: 1, beetle: 4, queen: 12 };
   const PTS = { ant: 10, beetle: 50, queen: 150 };
   const SURVIVE = 120;                                      // seconds the picnic must last (an arcade run: 30 s – 3 min)
   const WAVE = 20;                                          // seconds per wave
   const LOSE_AT = 3;                                        // dishes gone when the bugs win
-  const DOUBLE = w => Math.pow(2, w - 1);                   // every wave is twice as hard as the one before
-  const INCOME = w => 11 * DOUBLE(w);                      // crumbs per second: 11 bugs a second in wave 1, doubling each wave
+  const STEP = w => Math.pow(1.08, w - 1);                  // 8% more bugs each wave
+  const INCOME = w => 6 * STEP(w);                         // crumbs per second: 6, 6.5, 7, 7.6, 8.2, 8.8 (with narrower ripples and faster bugs, a good player falls at about 1:45)
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // dishes: grip = cloth speed (px/s) above which the cloth slides out from under them
@@ -104,7 +105,7 @@
     menuText: 'The picnic wins by keeping <b>4 of its 6 dishes for 2:00</b>. The bugs win when <b>3 dishes are gone</b>. Ants need a flick of 350, beetles 1000, the queen 1300 (ants hold on tighter once they\'re eating), and a flick over 1150 tips over the lemonade.',
     sides: [
       { key: 'picnic', label: 'Picnic', human: 'Grab the cloth with the mouse. Drag slowly to move dishes; drag fast toward a bug and let go to flick. Hit a bug with the middle of the ripple for full strength. Keys: arrows move the hand, hold Space to grab, let go to flick. Click a power-up to use it. Don\'t flick the ladybugs.', cpu: 'Takes longer to decide when more bugs are coming, moves its hand like a mouse (a fast movement, then often a small correction), and flicks in about 150 ms, a few degrees off and never the same strength twice. Under pressure it rushes and sometimes flicks far too hard; after spilling the lemonade it goes softer for a while. It pulls dishes back from the edge with a slow drag.' },
-      { key: 'bugs', label: 'Bugs', human: 'Crumbs come in over time. Press 1 ant (1 crumb), 2 beetle (4), 3 queen (12), then click the table edge, or press I J K L to send from the top, left, bottom or right.', cpu: 'Plays to win: spends every crumb the moment it arrives, favours beetles and the queen, goes after the dish closest to being finished, and spreads its bugs around every side away from your hand (its pointer is hidden). Every wave it earns crumbs twice as fast.' }
+      { key: 'bugs', label: 'Bugs', human: 'Crumbs come in over time. Press 1 ant (1 crumb), 2 beetle (4), 3 queen (12), then click the table edge, or press I J K L to send from the top, left, bottom or right.', cpu: 'Plays to win: spends every crumb the moment it arrives, favours beetles and the queen, goes after the dish closest to being finished, and spreads its bugs around every side away from your hand (its pointer is hidden). Every wave it earns crumbs 8% faster.' }
     ],
     defaults: { picnic: 'human', bugs: 'cpu' },
     quick: { picnic: 'GRAB THE CLOTH: DRAG SLOWLY TO MOVE DISHES, FLICK AND LET GO TO THROW BUGS', bugs: '1 / 2 / 3 PICKS A BUG · CLICK THE TABLE EDGE (OR I J K L) TO SEND IT' },
@@ -121,6 +122,7 @@
 
     create(api) {
       let time = 0, playT = (api.startLevel - 1) * WAVE, wave = api.startLevel, over = false, score = 0;
+      const HALF = () => HALF0 * Math.pow(0.9, wave - 1);       // each wave the flick's ripple gets 10% narrower
       let ox = 0, oy = 0, pox = 0, poy = 0, cvx = 0, cvy = 0, relT = 0;   // cloth offset and its velocity
       const dishes = LAYOUT.map(([k, x, y]) => Object.assign({ kind: k, x: TCX + x, y: TCY + y, vx: 0, vy: 0, food: 100, alive: true, wob: 0, fall: 0, warned: false, crunch: 0, eating: false }, KINDS[k]));
       let bugs = [], ripples = [], parts = [], floats = [], powers = [];
@@ -228,7 +230,7 @@
       const SIZE = { ant: 5, beetle: 9, queen: 12, ladybug: 7 };
       function makeBug(type, x, y) {
         const spread = type === 'ant' ? 0.35 : 0.08;              // ants differ a lot in speed; beetles hardly
-        const sp = U.clamp(BASE_SP[type] * Math.exp(U.gauss() * spread - spread * spread / 2), BASE_SP[type] * 0.5, BASE_SP[type] * 1.8) * 1.5 * Math.min(4, DOUBLE(wave));                // wave 1 = old wave 6 speed, doubling each wave up to 4x
+        const sp = U.clamp(BASE_SP[type] * Math.exp(U.gauss() * spread - spread * spread / 2), BASE_SP[type] * 0.5, BASE_SP[type] * 1.8) * 1.5 * (1 + (wave - 1) * 0.1);                // wave 1 = old wave 6 speed, doubling each wave up to 4x
         const b = { type, x, y, vx: 0, vy: 0, state: 'walk', t: 0, ang: Math.atan2(TCY - y, TCX - x), sp, r: SIZE[type], dish: null, ea: 0, chain: 1, spin: 0, leg: U.rand(0, 7), life: 14, spawnT: 4,
           trail: null, used: null, ti: 0, path: null, goal: null, pause: U.rand(1, 4) };
         if (type === 'ant') joinTrail(b);
@@ -313,13 +315,13 @@
       }
 
       /* ---------- waves ----------
-         Each wave is 20 s and twice as hard as the one before. There used to be
+         Each wave is 20 s: more bugs, faster bugs and narrower ripples than the one before. There used to be
          a 2-second regrouping pause at the end of each wave; play-testers found
          the game too easy, so it was removed and the pressure never lets up. */
       const breather = () => false;                                   // no regrouping pause between waves: the pressure never lets up
 
       /* ---------- shared bugs action: spend crumbs to send a bug ---------- */
-      let crumbs = 28 + (api.startLevel - 1) * 8, pick = 'ant';
+      let crumbs = 10 + (api.startLevel - 1) * 5, pick = 'ant';
       const unlocked = () => true;                                   // beetles and the queen from the start
       function send(type, side, along) {
         if (over || coaching()) return false;
@@ -521,7 +523,7 @@
         if (!bSteps.length) planBugs();
         const s = bSteps[0];
         if (!s) return;
-        s.t = (s.t || 0) + dt * 15 * DOUBLE(wave);              // places bugs 15x faster than a person could, doubling every wave
+        s.t = (s.t || 0) + dt * 15 * STEP(wave);                // places bugs 15x faster than a person could, a little faster each wave
         const k = Math.min(1, s.t / s.dur);
         if (s.k === 'wait') { if (k >= 1 || (s.early && sinceFlick < 0.25 && s.t > 0.2)) bSteps.shift(); return; }
         if (s.k === 'move') { const p = along(s, k); bc.x = p.x; bc.y = p.y; if (k >= 1) bSteps.shift(); return; }
@@ -584,8 +586,8 @@
         if (!coaching()) {
           playT += dt;
           const w = 1 + Math.floor(playT / WAVE);
-          if (w !== wave) { wave = w; api.toast(`Wave ${wave}: twice as hard`); api.sfx('point'); }
-          crumbs = Math.min(Math.max(12, 4 * DOUBLE(wave)), crumbs + dt * INCOME(wave));
+          if (w !== wave) { wave = w; api.toast(`Wave ${wave}: more bugs, smaller ripples`); api.sfx('point'); }
+          crumbs = Math.min(Math.max(12, 4 * STEP(wave)), crumbs + dt * INCOME(wave));
           sinceFlick += dt;
         }
 
