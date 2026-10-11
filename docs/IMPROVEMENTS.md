@@ -53,7 +53,7 @@ Balance numbers are computer-versus-computer runs with `tests/sim.js` (60–120 
 - Header now says game 8.
 
 ## Picnic Defender (new)
-- Original game: flick a picnic tablecloth so its ripple throws bugs off the table, while the cloth slides out from under your dishes. Slow drags move dishes; fast flicks throw bugs; hard flicks launch beetles but can spill the lemonade.
+- Original game: flick a picnic tablecloth so its ripple throws bugs off the table, while the cloth slides out from under your dishes. Slow drags move dishes; fast flicks throw bugs; hard flicks launch beetles and the queen.
 - Guided first game (a ghost hand teaches the slow drag and the flick), flick-power meter with marked thresholds, power-ups, ladybugs you shouldn't flick, a queen ant, 2-minute games with 20-second waves.
 - **Now the hardest game in the cabinet (after three rounds of play-testing said it was too easy):**
   - Bugs no longer arrive in clumps that one flick clears. Every bug comes in at its own spot, and about a third come from the other sides of the table, so you have to flick in several directions.
@@ -64,6 +64,7 @@ Balance numbers are computer-versus-computer runs with `tests/sim.js` (60–120 
   - And then 3 times further again: 36 crumbs a second (rising 10.5 every wave) and 225 to start, bugs placed 15 times faster than the version before, and ripples a third of that size (32 px across, shrinking to 10 px). Up to 450 bugs at once, still at 60 frames a second.
   - Final tuning from my own play-testing: each flick's ripple is half the tablecloth wide, and **each wave gets harder in three ways**: 15% more bugs a second (6 in wave 1, up to 12.1 in wave 6), bugs 10% faster, and each flick's ripple 10% narrower (half the tablecloth wide in wave 1).
 - **5-second checkpoint between waves:** every bug leaves the table, the dishes slide back to their places, each dish still standing gets +50 food (up to 100), and a card announces what the next wave changes (for example "BUGS 6.0 → 6.9 A SECOND (+15%) · BUG SPEED +10% · RIPPLE WIDTH 212 → 191 PX (−10%)") with a countdown. The 2:00 clock stops during the break. Tuned from my play-testing so a good player loses at about 1:40–1:45.
+- **No more drinks:** the two lemonade glasses (and spilling them with a hard flick) are gone. The table now has 5 foods (cake, pie, sandwiches, watermelon and a new cheese plate); the picnic keeps 4 of 5 to win and loses when 2 are gone. The flick meter no longer has a spill mark. Bug rate retuned to 4.8 a second in wave 1 (+15% a wave) so the target is still about 1:40.
 - **The computer picnic now plays as well as I do:** it reacts faster, sweeps each flick through the biggest group of bugs it can line up (with enough power for the heaviest bug in the line), and works about three times as fast. Against the computer bugs it now lasts about 1:35–1:45 on the game clock, the same as me.
 - **The computer bug player's mouse pointer is hidden** when you're the picnic, so you can't see where the next bugs will come from (it still shows in computer-vs-computer demos).
 - Both sides playable by a person or the computer; the computer players and the ants are built on research into how people point and flick and how ants forage.

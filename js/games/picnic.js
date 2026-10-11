@@ -4,13 +4,12 @@
    the tablecloth: a slow drag carries everything on it, a fast flick slides
    the cloth out from under the dishes (inertia, like the magician's trick)
    and sends a ripple across it that throws bugs off the table.
-   Picnic wins by keeping at least 4 of its 6 dishes for 2:00. Bugs win
-   when 3 dishes are eaten, spilled or knocked off.
+   Picnic wins by keeping at least 4 of its 5 dishes for 2:00. Bugs win
+   when 2 dishes are eaten or knocked off.
 
    Rules for both sides (human and computer alike):
      • ants need a flick of 350+, beetles 1000+, the queen 1300+;
        an ant that is already eating holds on 1.5× tighter
-     • a flick harder than 1150 tips over any lemonade glass in its path
      • the bugs side spends crumbs that come in at a fixed rate:
        ant 1, beetle 4, queen 12
      • every wave: 15% more bugs a second, bugs 10% faster, and each flick's
@@ -32,15 +31,14 @@
   const MAXOFF = 80;                                        // how far the cloth can be pulled
   const MAXF = 1800;                                        // strongest flick, px/s
   const NEED = { ant: 350, beetle: 1000, queen: 1300, ladybug: 350 };
-  const GLASS_TIPS = 1150;
   const HALF0 = CW / 4;                                     // ripple half-width in wave 1: each flick's ripple is half the tablecloth wide
   const COST = { ant: 1, beetle: 4, queen: 12 };
   const PTS = { ant: 10, beetle: 50, queen: 150 };
   const SURVIVE = 120;                                      // seconds the picnic must last (an arcade run: 30 s – 3 min)
   const WAVE = 20;                                          // seconds per wave
-  const LOSE_AT = 3;                                        // dishes gone when the bugs win
+  const LOSE_AT = 2;                                        // dishes gone when the bugs win
   const STEP = w => Math.pow(1.15, w - 1);                  // 15% more bugs each wave
-  const INCOME = w => 6 * STEP(w);                         // crumbs per second: 6, 6.9, 7.9, 9.1, 10.5, 12.1 (with narrower ripples, faster bugs and a heal each break, a good player falls at about 1:40-1:45)
+  const INCOME = w => 4.8 * STEP(w);                       // crumbs per second: 4.8, 5.5, 6.3, 7.3, 8.4, 9.7 (with narrower ripples, faster bugs and a heal each break, a good player falls at about 1:40-1:45)
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // dishes: grip = cloth speed (px/s) above which the cloth slides out from under them
@@ -49,13 +47,14 @@
     pie: { r: 30, grip: 300, sturdy: 1300, name: 'pie' },
     sand: { r: 28, grip: 330, sturdy: 1250, name: 'sandwiches' },
     melon: { r: 28, grip: 330, sturdy: 1250, name: 'watermelon' },
-    glass: { r: 15, grip: 240, sturdy: GLASS_TIPS, name: 'lemonade' }    // a smooth glass base slides easily
+    cheese: { r: 28, grip: 330, sturdy: 1250, name: 'cheese' }
   };
-  const LAYOUT = [['cake', 0, 4], ['pie', -122, -128], ['sand', 122, -128], ['melon', -122, 136], ['glass', 128, 146], ['glass', 0, -165]];
+  const DISHES = 5;
+  const LAYOUT = [['cake', 0, 4], ['pie', -122, -128], ['sand', 122, -128], ['melon', -122, 136], ['cheese', 122, 136]];
   const POWERS = {
     pepper: { label: 'PEPPER', desc: 'Bugs nearby run away', col: '#3a3a3a' },
     refill: { label: 'REFILL', desc: 'Every dish topped up', col: '#e8c21f' },
-    starch: { label: 'STARCH', desc: '3 strong flicks, no spills', col: '#3f8fe0' }
+    starch: { label: 'STARCH', desc: '3 extra-strong flicks', col: '#3f8fe0' }
   };
   const RANKS = [
     { at: 2500, name: 'Picnic legend', color: '#ffd23f' },
@@ -103,15 +102,15 @@
     scoreSide: 'picnic', scoreName: 'points',
     tagline: 'Flick the tablecloth to throw bugs off the picnic table.',
     flip: 'you send the bugs, the computer flicks the cloth.',
-    blurb: 'My own game. The picnic side grabs the tablecloth: slow drags move the dishes, fast flicks send a ripple that throws bugs off the table. The bugs side spends crumbs to send ants, beetles and a queen. The picnic wins by keeping 4 of its 6 dishes for 2:00.',
-    menuText: 'The picnic wins by keeping <b>4 of its 6 dishes for 2:00</b>. The bugs win when <b>3 dishes are gone</b>. Ants need a flick of 350, beetles 1000, the queen 1300 (ants hold on tighter once they\'re eating), and a flick over 1150 tips over the lemonade.',
+    blurb: 'My own game. The picnic side grabs the tablecloth: slow drags move the dishes, fast flicks send a ripple that throws bugs off the table. The bugs side spends crumbs to send ants, beetles and a queen. The picnic wins by keeping 4 of its 5 dishes for 2:00.',
+    menuText: 'The picnic wins by keeping <b>4 of its 5 dishes for 2:00</b>. The bugs win when <b>2 dishes are gone</b>. Ants need a flick of 350, beetles 1000, the queen 1300 (ants hold on tighter once they\'re eating). Between waves there is a 5-second checkpoint: the dishes go back to their places and get +50 food.',
     sides: [
-      { key: 'picnic', label: 'Picnic', human: 'Grab the cloth with the mouse. Drag slowly to move dishes; drag fast toward a bug and let go to flick. Hit a bug with the middle of the ripple for full strength. Keys: arrows move the hand, hold Space to grab, let go to flick. Click a power-up to use it. Don\'t flick the ladybugs.', cpu: 'Takes longer to decide when more bugs are coming, moves its hand like a mouse (a fast movement, then often a small correction), and flicks in about 150 ms, a few degrees off and never the same strength twice. Under pressure it rushes and sometimes flicks far too hard; after spilling the lemonade it goes softer for a while. It pulls dishes back from the edge with a slow drag.' },
+      { key: 'picnic', label: 'Picnic', human: 'Grab the cloth with the mouse. Drag slowly to move dishes; drag fast toward a bug and let go to flick. Hit a bug with the middle of the ripple for full strength. Keys: arrows move the hand, hold Space to grab, let go to flick. Click a power-up to use it. Don\'t flick the ladybugs.', cpu: 'Plays as well as a good human: reacts quickly, lines each flick up through the biggest group of bugs it can, flicks hard enough for the heaviest bug in that line, and pulls dishes back from the edge with a slow drag. Each flick takes about 150 ms and comes out a few degrees off, like a real mouse flick.' },
       { key: 'bugs', label: 'Bugs', human: 'Crumbs come in over time. Press 1 ant (1 crumb), 2 beetle (4), 3 queen (12), then click the table edge, or press I J K L to send from the top, left, bottom or right.', cpu: 'Plays to win: spends every crumb the moment it arrives, favours beetles and the queen, goes after the dish closest to being finished, and spreads its bugs around every side away from your hand (its pointer is hidden). Every wave it earns crumbs 15% faster.' }
     ],
     defaults: { picnic: 'human', bugs: 'cpu' },
     quick: { picnic: 'GRAB THE CLOTH: DRAG SLOWLY TO MOVE DISHES, FLICK AND LET GO TO THROW BUGS', bugs: '1 / 2 / 3 PICKS A BUG · CLICK THE TABLE EDGE (OR I J K L) TO SEND IT' },
-    goals: { picnic: 'KEEP 4 OF YOUR 6 DISHES FOR 2:00', bugs: 'GET RID OF 3 DISHES' },
+    goals: { picnic: 'KEEP 4 OF YOUR 5 DISHES FOR 2:00', bugs: 'GET RID OF 2 DISHES' },
     levels: { label: 'Wave', max: 6 },
 
     thumb(ctx, w, h) {
@@ -396,7 +395,7 @@
          • a mouse flick takes about 151 ms (sd 53) and comes out about 4° off
            the intended direction (Moyle & Cockburn); its strength varies
          • under pressure it moves faster but less accurately, and now and then
-           flicks far too hard; after spilling a glass it flicks softer for a while
+           flicks far too hard
          • it rescues a dish near the edge with a slow drag, like a person would */
       const pBrain = new Arcade.Human({ reaction: 0.15 });            // a practised player: quick to react
       let pSteps = [], spillMemory = 0;
@@ -416,7 +415,7 @@
         return s > 0 && s < 500 && perp < HALF(s);
       }
       function cpuPicnic(dt) {
-        pBrain.pressure = U.clamp(bugs.filter(b => b.state === 'eat').length / 6 + (6 - alive().length) * 0.08, 0, 1);
+        pBrain.pressure = U.clamp(bugs.filter(b => b.state === 'eat').length / 6 + (DISHES - alive().length) * 0.12, 0, 1);
         if (spillMemory > 0) spillMemory -= dt;
         if (!pSteps.length) planPicnic();
         const s = pSteps[0];
@@ -478,13 +477,12 @@
           : NEED[target.type] * U.rand(1.05, 1.2);
         if (U.chance(0.03 + pBrain.pressure * 0.06)) power *= 1.5;              // panic: far too hard
         power = U.clamp(power * Math.exp(U.gauss() * 0.15), 300, MAXF);         // no two flicks are the same
-        // which way: toward the nearest edge, but a careful player steers clear of glasses and ladybugs
+        // which way: toward the nearest edge, but a careful player steers clear of ladybugs
         let dir = null, bestCost = 1e9;
         for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
           let cost = (dx ? (dx > 0 ? TB.x + TB.w - target.x : target.x - TB.x) : (dy > 0 ? TB.y + TB.h - target.y : target.y - TB.y)) / 200;
           if (U.chance(0.5 + sk * 0.5)) {
             const r = { ox: target.x - dx * 100, oy: target.y - dy * 100, dx, dy };
-            for (const d of dishes) if (d.alive && d.kind === 'glass' && power > GLASS_TIPS && inPath(r, d)) cost += 3;
             for (const b of bugs) if (b.type === 'ladybug' && b.state !== 'off' && inPath(r, b)) cost += 2;
           }
           if (cost < bestCost) { bestCost = cost; dir = Math.atan2(dy, dx); }
@@ -506,9 +504,6 @@
             power = Math.max(power, heavy * U.rand(1.05, 1.2));
           }
         }
-        // a glass in the way: a careful player threads the needle, hard enough for the bug but under the spill mark
-        if (power > GLASS_TIPS && NEED[target.type] < GLASS_TIPS && U.chance(sk) && dishes.some(d => d.alive && d.kind === 'glass' && inPath({ ox: target.x - Math.cos(dir) * 100, oy: target.y - Math.sin(dir) * 100, dx: Math.cos(dir), dy: Math.sin(dir) }, d)))
-          power = U.lerp(NEED[target.type] * 1.03, GLASS_TIPS * 0.97, Math.random());
         const back = U.rand(60, 120);
         // the start point only has to be somewhere behind the bug, so it's a big target (fewer corrections)
         aim(st, pBrain, sk, pos, U.clamp(target.x - Math.cos(dir) * back, TB.x + 10, TB.x + TB.w - 10), U.clamp(target.y - Math.sin(dir) * back, TB.y + 10, TB.y + TB.h - 10), 70);
@@ -530,7 +525,7 @@
       let bSteps = [], saving = 0;
       const bSkill = () => 0.85;                                   // plays at its sharpest from the start
       // The computer bugs play to win: every crumb is spent the moment it arrives, never banked.
-      // It favours beetles and the queen (they need hard flicks that risk the lemonade), aims at
+      // It favours beetles and the queen (they need hard flicks), aims at
       // the dish that is closest to being finished, and spreads its bugs around every side,
       // mostly away from the hand.
       function cpuBugs(dt) {
@@ -574,12 +569,12 @@
         // gentle difficulty adjustment, only against a person: change what gets sent, never the rules
         let ease = 1;
         if (api.isHuman('picnic')) {
-          const lostN = 6 - alive().length, low = alive().filter(d => d.food < 30).length;
+          const lostN = DISHES - alive().length, low = alive().filter(d => d.food < 30).length;
           if (lostN >= 2 || low >= 2) ease = 1;                                   // struggling: hold back a little
           else if (playT > 25 && !lostN && alive().every(d => d.food > 70)) ease = 0.6;   // cruising: press harder
         }
-        // the dish to go after: low on food, near an edge, or a glass (it tempts hard flicks)
-        const target = alive().map(d => ({ d, s: (100 - d.food) / 50 + (1 - edgeDist(d) / 260) + (d.kind === 'glass' ? 0.15 : 0) + U.gauss() * 0.6 * (1 - bSkill()) }))
+        // the dish to go after: low on food or near an edge
+        const target = alive().map(d => ({ d, s: (100 - d.food) / 50 + (1 - edgeDist(d) / 260) + U.gauss() * 0.6 * (1 - bSkill()) }))
           .sort((a, b) => b.s - a.s)[0].d;
         // come in from the edge nearest it, unless the hand is guarding that edge
         const sides = [target.y - TB.y, TB.x + TB.w - target.x, TB.y + TB.h - target.y, target.x - TB.x].map((dist, sd) => ({ sd, dist })).sort((a, b) => a.dist - b.dist);
@@ -697,8 +692,7 @@
             r.hit.add(d);
             const amp = strength(r, d);
             if (amp > d.sturdy && !r.starch) {
-              if (d.kind === 'glass' && !coaching()) { lose(d, 'SPILLED!', 'Too hard a flick for the lemonade'); burst(d.x, d.y, '#ffe66b', 22, 180); shake = 10; api.sfx('hit'); spillMemory = 20; }
-              else { d.wob = 0.5; d.vx += r.dx * amp * 0.12; d.vy += r.dy * amp * 0.12; }
+              d.wob = 0.5; d.vx += r.dx * amp * 0.12; d.vy += r.dy * amp * 0.12;
             } else d.wob = 0.25;
           }
         }
@@ -761,7 +755,7 @@
         powers = powers.filter(p => p.life > 0);
 
         // end of the game
-        if (6 - alive().length >= LOSE_AT) {
+        if (DISHES - alive().length >= LOSE_AT) {
           over = true; grab = null;
           const left = SURVIVE - playT;
           return api.end('bugs', left < 25 ? `So close: the picnic fell with only ${clock(left)} to go. ${flung} bugs flung.` : `${LOSE_AT} dishes gone after ${clock(playT)}. ${flung} bugs flung.`, 1200);
@@ -771,12 +765,12 @@
           const bonus = alive().length * 100;
           score += bonus;
           api.sfx('win');
-          return api.end('picnic', `${alive().length} of 6 dishes saved (+${bonus}). ${flung} bugs flung, best chain x${bestChain}.`);
+          return api.end('picnic', `${alive().length} of ${DISHES} dishes saved (+${bonus}). ${flung} bugs flung, best chain x${bestChain}.`);
         }
       }
       function lose(d, title, msg) {
         d.alive = false; d.fall = 0.6; api.toast(`${title} ${msg}`, '#ff8a8a');
-        if (6 - alive().length === LOSE_AT - 1) api.toast('One more dish and the picnic is over!', '#ffd23f');
+        if (DISHES - alive().length === LOSE_AT - 1) api.toast('One more dish and the picnic is over!', '#ffd23f');
       }
       function spawnPower() {
         const type = U.pick(Object.keys(POWERS)), c = cloth();
@@ -856,12 +850,7 @@
         const jx = d.wob > 0 ? U.rand(-2, 2) : 0, jy = d.wob > 0 ? U.rand(-2, 2) : 0;
         ctx.save(); ctx.globalAlpha = a; ctx.translate(d.x + jx, d.y + jy); ctx.scale(sc, sc);
         if (d.alive && d.food < 30) { ctx.fillStyle = `rgba(216,52,63,${0.25 + 0.2 * Math.sin(time * 8)})`; ctx.beginPath(); ctx.arc(0, 0, d.r + 16, 0, 7); ctx.fill(); }
-        if (d.kind === 'glass') {
-          ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.beginPath(); ctx.arc(3, 4, d.r + 2, 0, 7); ctx.fill();
-          ctx.fillStyle = 'rgba(230,245,255,.9)'; ctx.beginPath(); ctx.arc(0, 0, d.r, 0, 7); ctx.fill();
-          ctx.fillStyle = '#f7dd4a'; ctx.beginPath(); ctx.arc(0, 0, d.r - 3, 0, 7); ctx.fill();
-          ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(-4, -4, 3, 0, 7); ctx.fill();
-        } else {
+        {
           plate(ctx, 0, 0, d.r);
           if (d.kind === 'cake') {
             ctx.fillStyle = '#f2a3b8'; ctx.beginPath(); ctx.arc(0, 0, d.r - 6, 0, 7); ctx.fill();
@@ -878,6 +867,11 @@
             ctx.beginPath(); ctx.moveTo(-14 * s, -12); ctx.lineTo(14 * s, -12); ctx.lineTo(0, 14); ctx.closePath(); ctx.fill();
             ctx.strokeStyle = '#8fc46a'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
           }
+          if (d.kind === 'cheese') {
+            ctx.fillStyle = '#f5c842'; ctx.beginPath(); ctx.moveTo(-15, 10); ctx.lineTo(15, 10); ctx.lineTo(9, -13); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#d9a520'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.fillStyle = '#d9a520'; for (const [x, y, rr] of [[-5, 4, 3], [5, 0, 2.5], [8, -7, 2]]) { ctx.beginPath(); ctx.arc(x, y, rr, 0, 7); ctx.fill(); }
+          }
           if (d.kind === 'melon') {
             ctx.fillStyle = '#3f8a3a'; ctx.beginPath(); ctx.arc(0, 4, d.r - 6, Math.PI, 0); ctx.fill();
             ctx.fillStyle = '#ef5a5f'; ctx.beginPath(); ctx.arc(0, 4, d.r - 10, Math.PI, 0); ctx.fill();
@@ -887,7 +881,7 @@
         if (d.alive) {
           const f = U.clamp(d.food / 100, 0, 1);
           ctx.strokeStyle = f > 0.5 ? '#8fc46a' : f > 0.3 ? '#f0b84a' : '#d8343f'; ctx.lineWidth = 4;
-          ctx.beginPath(); ctx.arc(0, 0, d.r + (d.kind === 'glass' ? 4 : 8), -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.arc(0, 0, d.r + 8, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2); ctx.stroke();
         }
         ctx.restore();
       }
@@ -955,8 +949,7 @@
         const f = U.clamp(live / MAXF, 0, 1);
         const yOf = v => my + mh * (1 - v / MAXF);
         ctx.fillStyle = '#24361f'; ctx.fillRect(mx, my, mw, mh);
-        ctx.fillStyle = 'rgba(216,52,63,.25)'; ctx.fillRect(mx, my, mw, yOf(GLASS_TIPS) - my);     // spill zone
-        ctx.fillStyle = live >= GLASS_TIPS ? '#d8343f' : live >= NEED.ant ? '#f7dd4a' : '#8fc46a';
+        ctx.fillStyle = live >= NEED.beetle ? '#ff8a3a' : live >= NEED.ant ? '#f7dd4a' : '#8fc46a';
         ctx.fillRect(mx, my + mh * (1 - f), mw, mh * f);
         const mark = (v, text, sub, color = '#fbf3e4') => {
           const y = yOf(v);
@@ -966,7 +959,6 @@
         };
         mark(NEED.ant, 'ANTS');
         mark(NEED.beetle, 'BEETLES');
-        mark(GLASS_TIPS, 'SPILLS', null, '#ff8a8a');
         mark(NEED.queen, 'QUEEN');
         if (starch) label(`STARCH x${starch}`, 75, 562, '#9fd0ff');
 
@@ -1026,7 +1018,7 @@
           title = '2. FLICK IT AND LET GO'; sub = 'Move fast toward an ant, then release';
           const ph = t % 1.8; gx = TCX - 130 + Math.min(ph, 0.55) / 0.55 * 150; gy = TCY - 20; down = ph < 0.55;
           if (ph > 0.55 && ph < 1.2) { ctx.strokeStyle = `rgba(255,255,255,${0.7 * (1 - (ph - 0.55) / 0.65)})`; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(TCX + 20 + (ph - 0.55) * 150, TCY - 110); ctx.lineTo(TCX + 20 + (ph - 0.55) * 150, TCY + 70); ctx.stroke(); }
-        } else { title = '3. BEETLES NEED A HARD FLICK'; sub = 'Really fast. Careful: hard flicks spill lemonade'; const ph = t % 1.4; gx = TCX - 150 + Math.min(ph, 0.35) / 0.35 * 200; gy = TCY + 130; down = ph < 0.35; }
+        } else { title = '3. BEETLES NEED A HARD FLICK'; sub = 'Really fast: the harder the flick, the farther they fly'; const ph = t % 1.4; gx = TCX - 150 + Math.min(ph, 0.35) / 0.35 * 200; gy = TCY + 130; down = ph < 0.35; }
         hand(ctx, gx, gy, down, 0.9, 1.7);
         ctx.fillStyle = 'rgba(20,32,18,.9)'; ctx.fillRect(TB.x, TB.y + TB.h - 70, TB.w, 70);
         outline(ctx, title, TCX, TB.y + TB.h - 48, 12, '#f7dd4a');
@@ -1096,7 +1088,7 @@
           D.hud(ctx, [
             { text: coaching() ? 'HOW TO PLAY' : `WAVE ${wave}`, pixel: true, size: 10, color: '#f7dd4a' },
             { text: coaching() ? '' : breather() ? `CHECKPOINT · WAVE ${nextWave} IN ${Math.ceil(pause)}` : `SAVE THE FOOD ${clock(Math.max(0, SURVIVE - playT))}`, align: 'center', pixel: true, size: 10, color: breather() ? '#8fc46a' : '#fbf3e4' },
-            { text: `${alive().length}/6 DISHES`, align: 'right', pixel: true, size: 10, color: alive().length <= 2 ? '#ff8a8a' : '#fbf3e4' }
+            { text: `${alive().length}/${DISHES} DISHES`, align: 'right', pixel: true, size: 10, color: alive().length <= DISHES - LOSE_AT + 1 ? '#ff8a8a' : '#fbf3e4' }
           ], 40);
           drawSides(ctx);
           if (coaching()) drawCoach(ctx);
