@@ -31,14 +31,14 @@
   const MAXOFF = 80;                                        // how far the cloth can be pulled
   const MAXF = 1800;                                        // strongest flick, px/s
   const NEED = { ant: 350, beetle: 1000, queen: 1300, ladybug: 350 };
-  const HALF0 = CW / 4;                                     // ripple half-width in wave 1: each flick's ripple is half the tablecloth wide
+  const HALF0 = CW / 4 / 1.3;                                     // ripple half-width in wave 1: each flick's ripple is half the tablecloth wide
   const COST = { ant: 1, beetle: 4, queen: 12 };
   const PTS = { ant: 10, beetle: 50, queen: 150 };
   const SURVIVE = 120;                                      // seconds the picnic must last (an arcade run: 30 s – 3 min)
   const WAVE = 20;                                          // seconds per wave
   const LOSE_AT = 2;                                        // dishes gone when the bugs win
   const STEP = w => Math.pow(1.15, w - 1);                  // 15% more bugs each wave
-  const INCOME = w => 4.8 * STEP(w);                       // crumbs per second: 4.8, 5.5, 6.3, 7.3, 8.4, 9.7 (with narrower ripples, faster bugs and a heal each break, a good player falls at about 1:40-1:45)
+  const INCOME = w => 6.24 * STEP(w);                      // crumbs per second (1.3x the last version): 6.2, 7.2, 8.3, 9.5, 10.9, 12.6 (with narrower ripples, faster bugs and a heal each break, a good player falls at about 1:40-1:45)
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // dishes: grip = cloth speed (px/s) above which the cloth slides out from under them
@@ -232,7 +232,7 @@
       const SIZE = { ant: 5, beetle: 9, queen: 12, ladybug: 7 };
       function makeBug(type, x, y) {
         const spread = type === 'ant' ? 0.35 : 0.08;              // ants differ a lot in speed; beetles hardly
-        const sp = U.clamp(BASE_SP[type] * Math.exp(U.gauss() * spread - spread * spread / 2), BASE_SP[type] * 0.5, BASE_SP[type] * 1.8) * 1.5 * (1 + (wave - 1) * 0.1);                // wave 1 = old wave 6 speed, doubling each wave up to 4x
+        const sp = U.clamp(BASE_SP[type] * Math.exp(U.gauss() * spread - spread * spread / 2), BASE_SP[type] * 0.5, BASE_SP[type] * 1.8) * 1.95 * (1 + (wave - 1) * 0.1);                    // 1.3x the last version's speed, +10% a wave                // wave 1 = old wave 6 speed, doubling each wave up to 4x
         const b = { type, x, y, vx: 0, vy: 0, state: 'walk', t: 0, ang: Math.atan2(TCY - y, TCX - x), sp, r: SIZE[type], dish: null, ea: 0, chain: 1, spin: 0, leg: U.rand(0, 7), life: 14, spawnT: 4,
           trail: null, used: null, ti: 0, path: null, goal: null, pause: U.rand(1, 4) };
         if (type === 'ant') joinTrail(b);
