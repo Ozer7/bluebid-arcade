@@ -37,7 +37,7 @@
   const WAVE = 20;                                          // seconds per wave
   const LOSE_AT = 3;                                        // dishes gone when the bugs win
   const DOUBLE = w => Math.pow(2, w - 1);                   // every wave is twice as hard as the one before
-  const INCOME = w => 22 * DOUBLE(w);                      // crumbs per second: 22 bugs a second in wave 1, doubling each wave
+  const INCOME = w => 11 * DOUBLE(w);                      // crumbs per second: 11 bugs a second in wave 1, doubling each wave
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // dishes: grip = cloth speed (px/s) above which the cloth slides out from under them
@@ -319,7 +319,7 @@
       const breather = () => false;                                   // no regrouping pause between waves: the pressure never lets up
 
       /* ---------- shared bugs action: spend crumbs to send a bug ---------- */
-      let crumbs = 56 + (api.startLevel - 1) * 15, pick = 'ant';
+      let crumbs = 28 + (api.startLevel - 1) * 8, pick = 'ant';
       const unlocked = () => true;                                   // beetles and the queen from the start
       function send(type, side, along) {
         if (over || coaching()) return false;
@@ -585,7 +585,7 @@
           playT += dt;
           const w = 1 + Math.floor(playT / WAVE);
           if (w !== wave) { wave = w; api.toast(`Wave ${wave}: twice as hard`); api.sfx('point'); }
-          crumbs = Math.min(8 * DOUBLE(wave), crumbs + dt * INCOME(wave));
+          crumbs = Math.min(Math.max(12, 4 * DOUBLE(wave)), crumbs + dt * INCOME(wave));
           sinceFlick += dt;
         }
 
