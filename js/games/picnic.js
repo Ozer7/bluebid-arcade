@@ -30,14 +30,14 @@
   const MAXF = 1800;                                        // strongest flick, px/s
   const NEED = { ant: 350, beetle: 1000, queen: 1300, ladybug: 350 };
   const GLASS_TIPS = 1150;
-  const HALF = f => Math.max(5, 16 - f * 0.027);           // half-width of a ripple after travelling f px: tiny, and shrinking as it travels, so every flick must be aimed
+  const HALF = () => CW / 4;                                // half-width of a ripple: each flick's ripple is half the tablecloth wide
   const COST = { ant: 1, beetle: 4, queen: 12 };
   const PTS = { ant: 10, beetle: 50, queen: 150 };
   const SURVIVE = 120;                                      // seconds the picnic must last (an arcade run: 30 s – 3 min)
   const WAVE = 20;                                          // seconds per wave
   const LOSE_AT = 3;                                        // dishes gone when the bugs win
   const DOUBLE = w => Math.pow(2, w - 1);                   // every wave is twice as hard as the one before
-  const INCOME = w => 88.5 * DOUBLE(w);                    // crumbs per second: wave 1 starts at the old wave 6 rate (88.5/s), then doubles
+  const INCOME = w => 44.25 * DOUBLE(w);                   // crumbs per second: half the bugs of the last version (44/s in wave 1), doubling each wave
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // dishes: grip = cloth speed (px/s) above which the cloth slides out from under them
@@ -104,7 +104,7 @@
     menuText: 'The picnic wins by keeping <b>4 of its 6 dishes for 2:00</b>. The bugs win when <b>3 dishes are gone</b>. Ants need a flick of 350, beetles 1000, the queen 1300 (ants hold on tighter once they\'re eating), and a flick over 1150 tips over the lemonade.',
     sides: [
       { key: 'picnic', label: 'Picnic', human: 'Grab the cloth with the mouse. Drag slowly to move dishes; drag fast toward a bug and let go to flick. Hit a bug with the middle of the ripple for full strength. Keys: arrows move the hand, hold Space to grab, let go to flick. Click a power-up to use it. Don\'t flick the ladybugs.', cpu: 'Takes longer to decide when more bugs are coming, moves its hand like a mouse (a fast movement, then often a small correction), and flicks in about 150 ms, a few degrees off and never the same strength twice. Under pressure it rushes and sometimes flicks far too hard; after spilling the lemonade it goes softer for a while. It pulls dishes back from the edge with a slow drag.' },
-      { key: 'bugs', label: 'Bugs', human: 'Crumbs come in over time. Press 1 ant (1 crumb), 2 beetle (4), 3 queen (12), then click the table edge, or press I J K L to send from the top, left, bottom or right. Nothing can be sent in the last 2 seconds of a wave.', cpu: 'Places bugs far faster than a person, spread out around the table (its pointer is hidden). Goes after the dish that is easiest to finish, comes in from edges the hand isn\'t guarding, and strikes right after a flick. Every wave it gets twice as fast.' }
+      { key: 'bugs', label: 'Bugs', human: 'Crumbs come in over time. Press 1 ant (1 crumb), 2 beetle (4), 3 queen (12), then click the table edge, or press I J K L to send from the top, left, bottom or right.', cpu: 'Plays to win: spends every crumb the moment it arrives, favours beetles and the queen, goes after the dish closest to being finished, and spreads its bugs around every side away from your hand (its pointer is hidden). Every wave it earns crumbs twice as fast.' }
     ],
     defaults: { picnic: 'human', bugs: 'cpu' },
     quick: { picnic: 'GRAB THE CLOTH: DRAG SLOWLY TO MOVE DISHES, FLICK AND LET GO TO THROW BUGS', bugs: '1 / 2 / 3 PICKS A BUG · CLICK THE TABLE EDGE (OR I J K L) TO SEND IT' },
@@ -312,14 +312,14 @@
         api.sfx('brick', { f: 500 + Math.min(b.chain, 10) * 110 });
       }
 
-      /* ---------- waves: a sawtooth ----------
-         Each wave is 20 s. In the last 2 s the bugs regroup (nobody can send
-         any), so every peak is followed by a short breather and the next wave
-         starts with a burst; each peak is a little higher than the last. */
-      const breather = () => !coaching() && playT % WAVE > WAVE - 2;
+      /* ---------- waves ----------
+         Each wave is 20 s and twice as hard as the one before. There used to be
+         a 2-second regrouping pause at the end of each wave; play-testers found
+         the game too easy, so it was removed and the pressure never lets up. */
+      const breather = () => false;                                   // no regrouping pause between waves: the pressure never lets up
 
       /* ---------- shared bugs action: spend crumbs to send a bug ---------- */
-      let crumbs = 225 + (api.startLevel - 1) * 60, pick = 'ant';
+      let crumbs = 112 + (api.startLevel - 1) * 30, pick = 'ant';
       const unlocked = () => true;                                   // beetles and the queen from the start
       function send(type, side, along) {
         if (over || coaching()) return false;
@@ -491,7 +491,33 @@
       const bc = { x: TB.x + TB.w + 40, y: TCY };                // its cursor (hidden from a human picnic player)
       let bSteps = [], saving = 0;
       const bSkill = () => 0.85;                                   // plays at its sharpest from the start
+      // The computer bugs play to win: every crumb is spent the moment it arrives, never banked.
+      // It favours beetles and the queen (they need hard flicks that risk the lemonade), aims at
+      // the dish that is closest to being finished, and spreads its bugs around every side,
+      // mostly away from the hand.
       function cpuBugs(dt) {
+        if (coaching() || breather()) return;
+        for (let guard = 0; guard < 200 && crumbs >= 1 && bugs.length <= 600; guard++) {
+          const live = alive(); if (!live.length) return;
+          const target = live.map(d => ({ d, s: (100 - d.food) / 40 + (1 - edgeDist(d) / 260) + Math.random() * 0.8 })).sort((a, b) => b.s - a.s)[0].d;
+          let type = 'ant';
+          if (crumbs >= COST.queen && !bugs.some(b => b.type === 'queen' && b.state !== 'off')) type = 'queen';
+          else if (crumbs >= COST.beetle && U.chance(0.55)) type = 'beetle';
+          const hs = sideOf(hnd.x, hnd.y);
+          let side, al;
+          if (U.chance(0.55)) {                                   // straight at the target, from its nearest side
+            const near = [target.y - TB.y, TB.x + TB.w - target.x, TB.y + TB.h - target.y, target.x - TB.x].map((dd, sd) => ({ sd, dd })).sort((a, b) => a.dd - b.dd);
+            side = near[0].sd === hs.side && hs.dist < 150 ? near[1].sd : near[0].sd;
+            al = (side % 2 === 0 ? (target.x - TB.x - 20) / (TB.w - 40) : (target.y - TB.y - 20) / (TB.h - 40)) + U.rand(-0.25, 0.25);
+          } else {                                                // anywhere else, away from the hand
+            side = U.randInt(0, 3); if (side === hs.side && U.chance(0.7)) side = (side + 2) % 4;
+            al = Math.random();
+          }
+          if (!send(type, side, U.clamp(al, 0, 1))) return;
+          const p = edgePoint(side, U.clamp(al, 0, 1)); bc.x = p.x; bc.y = p.y;
+        }
+      }
+      function cpuBugsOld(dt) {
         if (!bSteps.length) planBugs();
         const s = bSteps[0];
         if (!s) return;
@@ -559,7 +585,7 @@
           playT += dt;
           const w = 1 + Math.floor(playT / WAVE);
           if (w !== wave) { wave = w; api.toast(`Wave ${wave}: twice as hard`); api.sfx('point'); }
-          crumbs = Math.min(30 * DOUBLE(wave), crumbs + dt * INCOME(wave));
+          crumbs = Math.min(15 * DOUBLE(wave), crumbs + dt * INCOME(wave));
           sinceFlick += dt;
         }
 
